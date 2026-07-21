@@ -1,0 +1,188 @@
+🎯 Peta Jalan Pengembangan (Roadmap)
+Modularisasi UI (Navbar & Sidebar): Mengganti struktur Navbar dan Sidebar inline dengan komponen <Navbar /> dan <Sidebar /> agar konsisten dengan halaman kuis/materi lainnya.
+
+Ubah Email Riil (API PHP & Async Session):
+
+Mengirim permintaan update email ke endpoint backend PHP (update-email.php).
+
+Memperbarui data userSession di AsyncStorage secara instan agar perubahan email berlaku di seluruh halaman app tanpa perlu log out.
+
+Ubah Kata Sandi Riil (API PHP & Hash Check):
+
+Mengirim permintaan ke update-password.php untuk memverifikasi kata sandi lama terlebih dahulu sebelum memperbarui kata sandi baru.
+
+Pembersih Cache Riil:
+
+Menghitung dan membersihkan data temporary/cache internal aplikasi secara nyata.
+
+Manajemen Preferensi & Notifikasi:
+
+Memastikan pengaturan Daily Reminder, Theme Mode, dan Language tersimpan secara presisi di AsyncStorage.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Dari screenshot phpMyAdmin (users) yang kamu kirim, struktur databasenya sudah sangat jelas kawan:
+
+Tabel: users
+
+Kolom kunci: email, updated_at (serta id, username, dll.)
+
+Kamu tidak perlu mengirimkan file PHP lain, kecuali jika file koneksi database milikmu bukan koneksi.php (misal db.php atau config.php).
+
+Berikut adalah panduan dan kode utuh untuk membuat file baru update-email.php di backend serta fungsi pembaruan AsyncStorage di React Native agar email diperbarui secara instan tanpa log out.
+
+1. Buat File Backend Baru: update-email.php
+Buat file baru bernama update-email.php di dalam folder htdocs/ambativasi-api/ kamu, lalu isi dengan kode berikut:
+
+PHP
+<?php
+// Mengizinkan akses dari Expo / Ngrok
+header("Access-Control-Allow-Origin: *");
+header("Content-Type: application/json; charset=UTF-8");
+header("Access-Control-Allow-Methods: POST");
+header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+
+// Hubungkan ke database (Sesuaikan nama file koneksi DB kamu jika berbeda)
+include_once 'koneksi.php';
+
+// Tangkap request data JSON dari React Native
+$data = json_decode(file_get_contents("php://input"));
+
+if (!empty($data->current_email) && !empty($data->new_email)) {
+    $current_email = mysqli_real_escape_string($conn, trim($data->current_email));
+    $new_email = mysqli_real_escape_string($conn, trim($data->new_email));
+
+    // 1. Validasi format email
+    if (!filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
+        echo json_encode([
+            "status" => "error",
+            "message" => "Format email baru tidak valid!"
+        ]);
+        exit();
+    }
+
+    // 2. Cek apakah email baru sudah terdaftar oleh pengguna lain
+    $checkQuery = "SELECT id FROM users WHERE email = '$new_email' AND email != '$current_email'";
+    $checkResult = mysqli_query($conn, $checkQuery);
+
+    if (mysqli_num_rows($checkResult) > 0) {
+        echo json_encode([
+            "status" => "error",
+            "message" => "Alamat email baru sudah digunakan oleh akun lain!"
+        ]);
+        exit();
+    }
+
+    // 3. Jalankan Query Update
+    $updateQuery = "UPDATE users SET email = '$new_email', updated_at = NOW() WHERE email = '$current_email'";
+    
+    if (mysqli_query($conn, $updateQuery)) {
+        echo json_encode([
+            "status" => "success",
+            "message" => "Alamat email berhasil diperbarui!"
+        ]);
+    } else {
+        echo json_encode([
+            "status" => "error",
+            "message" => "Gagal memperbarui database: " . mysqli_error($conn)
+        ]);
+    }
+} else {
+    echo json_encode([
+        "status" => "error",
+        "message" => "Data email tidak lengkap!"
+    ]);
+}
+exit();
+?>
+
+2. Update Fungsi handleSaveEmail di React Native (pengaturan.tsx)
+Buka file pengaturan.tsx kamu, lalu ganti fungsi handleSaveEmail dengan logika riil berikut.
+
+Fungsi ini akan:
+
+Mengirim data email baru ke update-email.php.
+
+Jika sukses, membaca userSession lama di AsyncStorage, memperbarui field email-nya, lalu menyimpannya kembali.
+
+Memperbarui userData lokal di state aplikasi.
+
+TypeScript
+const handleSaveEmail = async () => {
+  const trimmedEmail = newEmail.trim().toLowerCase();
+
+  // Validasi Input Sederhana
+  if (!trimmedEmail || !trimmedEmail.includes("@")) {
+    Alert.alert("Perhatian", "Masukkan alamat email baru yang valid!");
+    return;
+  }
+
+  if (trimmedEmail === userData?.email) {
+    Alert.alert("Perhatian", "Email baru harus berbeda dari email saat ini!");
+    return;
+  }
+
+  try {
+    setSubmitting(true);
+
+    // 1. Tembak API PHP
+    const response = await fetch(`${API_URL}/ambativasi-api/update-email.php`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        current_email: userData?.email,
+        new_email: trimmedEmail,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.status === "success") {
+      // 2. Ambil Session Lama dari AsyncStorage
+      const currentSessionRaw = await AsyncStorage.getItem("userSession");
+      let sessionData = currentSessionRaw ? JSON.parse(currentSessionRaw) : {};
+
+      // 3. Update Email pada Session
+      sessionData.email = trimmedEmail;
+
+      // 4. Simpan Kembali ke AsyncStorage
+      await AsyncStorage.setItem("userSession", JSON.stringify(sessionData));
+
+      // 5. Update State Lokal Agar UI Berubah Instan
+      setUserData({
+        username: userData?.username || "User",
+        email: trimmedEmail,
+      });
+
+      Alert.alert("Sukses", "Alamat email berhasil diperbarui!");
+      setNewEmail("");
+      setActiveModal(null);
+    } else {
+      Alert.alert("Gagal", result.message || "Gagal memperbarui email.");
+    }
+  } catch (error) {
+    console.log("Error update email:", error);
+    Alert.alert("Error Koneksi", "Gagal menghubungkan ke server backend API.");
+  } finally {
+    setSubmitting(false);
+  }
+};
+🔥 Alur Setelah Diterapkan:
+Kamu memasukkan email baru di modal pengaturan.
+
+Server PHP memeriksa ketersediaan email di database MySQL ambativasi.
+
+Setelah database ter-update, AsyncStorage di HP memperbarui token session userSession.
+
+Seluruh komponen app yang memakai email (Header Navbar, Sidebar, Profile, dll) langsung sinkron menggunakan email baru tanpa perlu login ulang.

@@ -1,0 +1,219 @@
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router, Stack } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { WebView } from "react-native-webview";
+
+// 💡 IMPORT KOMPONEN MODULAR NAVBAR & SIDEBAR
+import { Navbar } from "../../../../components/navbar";
+import { Sidebar } from "../../../../components/sidebar";
+
+const { width } = Dimensions.get("window");
+const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
+
+export default function pdfBab1Screen() {
+  const [loading, setLoading] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [slideAnim] = useState(new Animated.Value(-width));
+  const [userData, setUserData] = useState<{
+    username: string;
+    email: string;
+  } | null>(null);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+
+  // 💡 ONLINE: ID file PDF materi Tajwid
+  const onlinePdfUrl =
+    "https://docs.google.com/uc?export=download&id=1ag9eYSeJaul5QvWuWXVPkLUf7WIWLci8";
+
+  // Google Docs View Embed Renderer
+  const webViewSource = {
+    uri: `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(onlinePdfUrl)}`,
+  };
+
+  useEffect(() => {
+    checkSession();
+  }, []);
+
+  const checkSession = async () => {
+    try {
+      const session = await AsyncStorage.getItem("userSession");
+      if (session === null) {
+        router.replace("/auth/login");
+      } else {
+        const parsedSession = JSON.parse(session);
+        setUserData({
+          username: parsedSession.username || "User",
+          email: parsedSession.email || "",
+        });
+
+        // 💡 AMBIL FOTO PROFIL: Sinkronisasi instan dari database API PHP
+        try {
+          const responseProfile = await fetch(`${API_URL}/ambativasi-api/get-profile.php?email=${parsedSession.email}`);
+          const dataProfile = await responseProfile.json();
+          if (dataProfile.status === "success" && dataProfile.profile_image) {
+            setProfileImage(`${API_URL}/ambativasi-api/${dataProfile.profile_image}`);
+          }
+        } catch (e) {
+          console.log("Avatar gagal dimuat di PDF Tajwid", e);
+        }
+
+        setLoading(false);
+      }
+    } catch (error) {
+      console.log("Gagal memuat session", error);
+      router.replace("/auth/login");
+    }
+  };
+
+  const toggleSidebar = (open: boolean) => {
+    if (open) {
+      setIsSidebarOpen(true);
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: -width,
+        duration: 250,
+        useNativeDriver: false,
+      }).start(() => setIsSidebarOpen(false));
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem("userSession");
+      router.replace("/auth/login");
+    } catch (error) {
+      console.log("Gagal menghapus session", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#16A34A" />
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+
+      {/* MENGHILANGKAN BAR PUTIH BAWAAN EXPO ROUTER */}
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* ==================== NAVBAR ATAS ==================== */}
+      <Navbar
+        onOpenSidebar={() => toggleSidebar(true)}
+        userData={userData}
+        profileImage={profileImage}
+      />
+
+      {/* ==================== KONTEN UTAMA ==================== */}
+      <View style={styles.mainContent}>
+        {/* TOMBOL KEMBALI */}
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={20} color="#16A34A" />
+          <Text style={styles.backButtonText}>Kembali ke Menu Materi</Text>
+        </TouchableOpacity>
+
+        {/* CONTAINER VIEW UNTUK MENAMPILKAN PDF SECARA FLEKSIBEL */}
+        <View style={styles.pdfContainer}>
+          <WebView
+            originWhitelist={["*"]}
+            source={webViewSource}
+            style={styles.pdfViewer}
+            allowFileAccess={true}
+            allowUniversalAccessFromFileURLs={true}
+            // ==================== FITUR PAKSA ZOOM (ANDROID & iOS) ====================
+            scalesPageToFit={true}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            setSupportZoom={true} 
+            builtInZoomControls={true} 
+            displayZoomControls={false} 
+            // =========================================================================
+
+            startInLoadingState={true}
+            renderLoading={() => (
+              <ActivityIndicator
+                color="#16A34A"
+                size="large"
+                style={{ position: "absolute", top: "45%", left: "45%" }}
+              />
+            )}
+          />
+        </View>
+      </View>
+
+      {/* ==================== SIDEBAR ==================== */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => toggleSidebar(false)}
+        slideAnim={slideAnim}
+        userData={userData}
+        profileImage={profileImage}
+        onLogout={handleLogout}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+  },
+
+  mainContent: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
+
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  backButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#16A34A",
+    marginLeft: 6,
+  },
+
+  // --- STYLE UNTUK CANVAS VIEW PDF ---
+  pdfContainer: {
+    flex: 1,
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
+    marginBottom: 0, 
+  },
+  pdfViewer: {
+    flex: 1,
+    width: Dimensions.get("window").width - 42,
+    height: Dimensions.get("window").height,
+  },
+});

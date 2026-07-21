@@ -1,0 +1,274 @@
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router, Stack } from "expo-router";
+import * as ScreenOrientation from "expo-screen-orientation";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import YoutubePlayer from "react-native-youtube-iframe";
+
+// 💡 IMPORT KOMPONEN MODULAR NAVBAR & SIDEBAR
+import { Navbar } from "../../../../components/navbar";
+import { Sidebar } from "../../../../components/sidebar";
+
+const { width } = Dimensions.get("window");
+const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
+
+export default function VideoBab1Screen() {
+  const [loading, setLoading] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [slideAnim] = useState(new Animated.Value(-width));
+  const [userData, setUserData] = useState<{
+    username: string;
+    email: string;
+  } | null>(null);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+
+  // ID Video YouTube
+  const videoId = "QwUTyC4rd7c";
+
+  // State untuk melacak status full screen
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  useEffect(() => {
+    checkSession();
+  }, []);
+
+  const checkSession = async () => {
+    try {
+      const session = await AsyncStorage.getItem("userSession");
+      if (session === null) {
+        router.replace("../../../../auth/login");
+      } else {
+        const parsedSession = JSON.parse(session);
+        setUserData({
+          username: parsedSession.username || "User",
+          email: parsedSession.email || "",
+        });
+
+        // 💡 AMBIL FOTO PROFIL: Sinkronisasi instan dari database API PHP
+        try {
+          const responseProfile = await fetch(`${API_URL}/ambativasi-api/get-profile.php?email=${parsedSession.email}`);
+          const dataProfile = await responseProfile.json();
+          if (dataProfile.status === "success" && dataProfile.profile_image) {
+            setProfileImage(`${API_URL}/ambativasi-api/${dataProfile.profile_image}`);
+          }
+        } catch (e) {
+          console.log("Avatar gagal dimuat di Video screen", e);
+        }
+
+        setLoading(false);
+      }
+    } catch (error) {
+      console.log("Gagal memuat session", error);
+      router.replace("../../../../auth/login");
+    }
+  };
+
+  // --- KUNCI OTOMATIS LANDSCAPE / PORTRAIT SAAT FULL SCREEN ---
+  const onFullScreenChange = useCallback(async (isFull: boolean) => {
+    setIsFullScreen(isFull);
+    if (isFull) {
+      // Jika user klik full screen, paksa layar jadi landscape mendatar
+      await ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT,
+      );
+    } else {
+      // Jika keluar dari full screen, kembalikan layar tegak portrait
+      await ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP,
+      );
+    }
+  }, []);
+
+  // Pastikan saat user keluar dari halaman ini, orientasi layar di-reset ke portrait bawaan HP
+  useEffect(() => {
+    return () => {
+      ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP,
+      );
+    };
+  }, []);
+
+  const toggleSidebar = (open: boolean) => {
+    if (open) {
+      setIsSidebarOpen(true);
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: -width,
+        duration: 250,
+        useNativeDriver: false,
+      }).start(() => setIsSidebarOpen(false));
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem("userSession");
+      router.replace("../../../../auth/login");
+    } catch (error) {
+      console.log("Gagal menghapus session", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#16A34A" />
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Sembunyikan Header bawaan Expo agar tidak double */}
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+
+      {/* ==================== NAVBAR ATAS ==================== */}
+      {/* HANYA MUNCUL JIKA TIDAK SEDANG FULL SCREEN */}
+      {!isFullScreen && (
+        <Navbar
+          onOpenSidebar={() => toggleSidebar(true)}
+          userData={userData}
+          profileImage={profileImage}
+        />
+      )}
+
+      {/* ==================== KONTEN UTAMA ==================== */}
+      <View style={styles.mainContent}>
+        {/* TOMBOL KEMBALI: HANYA MUNCUL JIKA TIDAK SEDANG FULL SCREEN */}
+        {!isFullScreen && (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={20} color="#16A34A" />
+            <Text style={styles.backButtonText}>Kembali ke Menu Materi</Text>
+          </TouchableOpacity>
+        )}
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={styles.scrollContainer}
+        >
+          <Text style={styles.videoTitleText}>Video Pembelajaran: BAB 1</Text>
+
+          {/* PEMUTAR VIDEO YOUTUBE */}
+          <View style={styles.videoWrapper}>
+            <YoutubePlayer
+              height={isFullScreen ? Dimensions.get("window").height : 220} // Menyesuaikan tinggi otomatis saat landscape
+              play={false}
+              videoId={videoId}
+              onChangeState={(state: string) =>
+                console.log("Status Video:", state)
+              }
+              onFullScreenChange={onFullScreenChange}
+              initialPlayerParams={{
+                preventFullScreen: false,
+                cc_load_policy: 0,
+                rel: 0,
+              }}
+            />
+          </View>
+
+          {/* DESKRIPSI TAMBAHAN DI BAWAH VIDEO */}
+          {!isFullScreen && (
+            <View style={styles.descriptionCard}>
+              <Text style={styles.descriptionHeader}>Tentang Materi Ini</Text>
+              <Text style={styles.descriptionBody}>
+                Silakan tonton video tutorial di atas untuk memahami pelafalan,
+                tajwid, dan baik benarnya surah al-fatihah secara mendalam. Kamu
+                bisa menjeda (pause), memajukan, atau mempercepat video
+                menggunakan kontrol bawaan yang tersedia di layar pemutar.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+
+      {/* ==================== SIDEBAR ==================== */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => toggleSidebar(false)}
+        slideAnim={slideAnim}
+        userData={userData}
+        profileImage={profileImage}
+        onLogout={handleLogout}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+  },
+  mainContent: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  backButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#16A34A",
+    marginLeft: 6,
+  },
+  scrollContainer: { flex: 1, marginTop: 4 },
+  videoTitleText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1E293B",
+    marginBottom: 16,
+  },
+
+  // CONTAINER UNTUK MENJAGA PLAYER TETAP PROPORSIONAL DAN RAPI
+  videoWrapper: {
+    backgroundColor: "#000",
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
+    marginBottom: 20,
+  },
+  descriptionCard: {
+    backgroundColor: "#FFF",
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  descriptionHeader: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#1E293B",
+    marginBottom: 8,
+  },
+  descriptionBody: { fontSize: 14, color: "#64748B", lineHeight: 22 },
+});

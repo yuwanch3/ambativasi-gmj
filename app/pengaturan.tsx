@@ -1,0 +1,881 @@
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router, Stack, useFocusEffect } from "expo-router";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Modal,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+// 💡 IMPORT KOMPONEN MODULAR NAVBAR & SIDEBAR
+import { Navbar } from "../components/navbar";
+import { Sidebar } from "../components/sidebar";
+
+// 💡 IMPORT CONTEXT TEMA GLOBAL REAL-TIME
+import { useTheme } from "../context/ThemeContext";
+
+const { width } = Dimensions.get("window");
+
+// 💡 ONLINE: Pastikan alamat Ngrok ini selalu sama dengan terowongan aktifmu
+const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
+
+export default function PengaturanScreen() {
+  // --- TEMA GLOBAL REAL-TIME ---
+  const { themeMode, setThemeMode, colors } = useTheme();
+
+  // --- STATE LAYOUT & SIDEBAR ---
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [slideAnim] = useState(new Animated.Value(-width));
+  const [userData, setUserData] = useState<{
+    username: string;
+    email: string;
+  } | null>(null);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+
+  // --- STATE PENGATURAN ---
+  const [isDailyReminder, setIsDailyReminder] = useState(true);
+  const [language, setLanguage] = useState<"id" | "en">("id");
+  const [cacheSize, setCacheSize] = useState("12.4 MB");
+
+  // --- STATE MODAL INTERAKSI ---
+  const [activeModal, setActiveModal] = useState<
+    "password" | "email" | "theme" | "language" | "faq" | "privacy" | null
+  >(null);
+
+  // --- STATE FORM INPUT KATA SANDI ---
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // --- STATE VISIBILITAS KATA SANDI (TOGGLE MATA) ---
+  const [showOldPass, setShowOldPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+
+  // --- STATE FORM INPUT EMAIL ---
+  const [newEmail, setNewEmail] = useState("");
+
+  useFocusEffect(
+    React.useCallback(() => {
+      checkSession();
+      loadSettings();
+    }, [])
+  );
+
+  const checkSession = async () => {
+    try {
+      const session = await AsyncStorage.getItem("userSession");
+      if (session === null) {
+        router.replace("../auth/login");
+      } else {
+        const parsedSession = JSON.parse(session);
+        setUserData({
+          username: parsedSession.username || "User",
+          email: parsedSession.email || "",
+        });
+
+        // Ambil data foto profil terbaru dari database MySQL
+        try {
+          const response = await fetch(
+            `${API_URL}/ambativasi-api/get-profile.php?email=${parsedSession.email}`
+          );
+          const data = await response.json();
+
+          if (data.status === "success" && data.profile_image) {
+            setProfileImage(`${API_URL}/ambativasi-api/${data.profile_image}`);
+          } else {
+            setProfileImage(null);
+          }
+        } catch (e) {
+          console.log("Gagal memuat foto profil", e);
+        }
+
+        setLoading(false);
+      }
+    } catch (error) {
+      console.log("Gagal memuat session", error);
+      router.replace("../auth/login");
+    }
+  };
+
+  const loadSettings = async () => {
+    try {
+      const savedReminder = await AsyncStorage.getItem("setting_reminder");
+      const savedLang = await AsyncStorage.getItem("setting_lang");
+
+      if (savedReminder !== null) setIsDailyReminder(JSON.parse(savedReminder));
+      if (savedLang) setLanguage(savedLang as any);
+    } catch (e) {
+      console.log("Gagal memuat preferensi pengaturan", e);
+    }
+  };
+
+  const toggleSidebar = (open: boolean) => {
+    if (open) {
+      setIsSidebarOpen(true);
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: -width,
+        duration: 250,
+        useNativeDriver: false,
+      }).start(() => setIsSidebarOpen(false));
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem("userSession");
+      router.replace("../auth/login");
+    } catch (error) {
+      console.log("Gagal menghapus session", error);
+    }
+  };
+
+  const handleToggleReminder = async (val: boolean) => {
+    setIsDailyReminder(val);
+    await AsyncStorage.setItem("setting_reminder", JSON.stringify(val));
+  };
+
+  const handleSelectTheme = (mode: "terang" | "gelap" | "sistem") => {
+    setThemeMode(mode); // Langsung update real-time via Context
+    setActiveModal(null);
+  };
+
+  const handleSelectLanguage = async (lang: "id" | "en") => {
+    setLanguage(lang);
+    await AsyncStorage.setItem("setting_lang", lang);
+    setActiveModal(null);
+  };
+
+  const handleClearCache = () => {
+    Alert.alert(
+      "Bersihkan Cache",
+      "Apakah kamu yakin ingin membersihkan data cache sementara aplikasi?",
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Bersihkan",
+          style: "destructive",
+          onPress: () => {
+            setCacheSize("0.0 KB");
+            Alert.alert("Sukses", "Cache aplikasi berhasil dibersihkan kawan!");
+          },
+        },
+      ]
+    );
+  };
+
+  // 💡 LOGIKA RIIL: UBAH KATA SANDI VIA API PHP BERBASIS VERIFIKASI SANDI LAMA
+  const handleSavePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      Alert.alert("Perhatian", "Harap isi semua bidang kata sandi!");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      Alert.alert("Perhatian", "Kata sandi baru minimal harus 6 karakter!");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Perhatian", "Konfirmasi kata sandi baru tidak cocok!");
+      return;
+    }
+
+    if (oldPassword === newPassword) {
+      Alert.alert("Perhatian", "Kata sandi baru harus berbeda dari kata sandi lama!");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const response = await fetch(`${API_URL}/ambativasi-api/change-password.php`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true",
+        },
+        body: JSON.stringify({
+          email: userData?.email,
+          old_password: oldPassword,
+          new_password: newPassword,
+        }),
+      });
+
+      const rawText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(rawText);
+      } catch (e) {
+        Alert.alert("Error Server", "Respon dari server tidak valid!");
+        return;
+      }
+
+      if (result.status === "success" || result.success) {
+        Alert.alert("Sukses", "Kata sandi kamu berhasil diperbarui!");
+        setOldPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setShowOldPass(false);
+        setShowNewPass(false);
+        setShowConfirmPass(false);
+        setActiveModal(null);
+      } else {
+        Alert.alert("Gagal", result.message || "Kata sandi lama tidak sesuai!");
+      }
+    } catch (error) {
+      console.log("Error update password:", error);
+      Alert.alert("Error Koneksi", "Gagal memperbarui kata sandi.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // 💡 LOGIKA RIIL: UBAH EMAIL VIA API PHP & UPDATE SESSION ASYNCSTORAGE
+  const handleSaveEmail = async () => {
+    const trimmedEmail = newEmail.trim().toLowerCase();
+
+    if (!trimmedEmail || !trimmedEmail.includes("@")) {
+      Alert.alert("Perhatian", "Masukkan alamat email yang valid!");
+      return;
+    }
+
+    if (trimmedEmail === userData?.email) {
+      Alert.alert("Perhatian", "Email baru harus berbeda dari email saat ini!");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const response = await fetch(`${API_URL}/ambativasi-api/update-email.php`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true",
+        },
+        body: JSON.stringify({
+          current_email: userData?.email,
+          new_email: trimmedEmail,
+        }),
+      });
+
+      const rawText = await response.text();
+      const result = JSON.parse(rawText);
+
+      if (result.status === "success") {
+        const currentSessionRaw = await AsyncStorage.getItem("userSession");
+        let sessionData = currentSessionRaw ? JSON.parse(currentSessionRaw) : {};
+        sessionData.email = trimmedEmail;
+
+        await AsyncStorage.setItem("userSession", JSON.stringify(sessionData));
+
+        setUserData({
+          username: userData?.username || "User",
+          email: trimmedEmail,
+        });
+
+        Alert.alert("Sukses", "Alamat email berhasil diperbarui!");
+        setNewEmail("");
+        setActiveModal(null);
+      } else {
+        Alert.alert("Gagal", result.message || "Gagal memperbarui email.");
+      }
+    } catch (error) {
+      console.log("Error update email:", error);
+      Alert.alert("Error Koneksi", "Gagal memperbarui email");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color="#2563EB" />
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.card} />
+      
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* ==================== NAVBAR ATAS ==================== */}
+      <Navbar
+        onOpenSidebar={() => toggleSidebar(true)}
+        userData={userData}
+        profileImage={profileImage}
+      />
+
+      {/* ==================== KONTEN UTAMA ==================== */}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+
+        {/* ==================== SEKSI 1: AKUN & KEAMANAN ==================== */}
+        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>AKUN & KEAMANAN</Text>
+        <View style={[styles.cardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity style={styles.rowItem} onPress={() => setActiveModal("email")}>
+            <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#1E3A8A" : "#EFF6FF" }]}>
+              <Ionicons name="mail-outline" size={20} color="#2563EB" />
+            </View>
+            <View style={styles.rowTextWrapper}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Ubah Email</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>{userData?.email || "Perbarui alamat email akunmu"}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+
+          <TouchableOpacity style={styles.rowItem} onPress={() => setActiveModal("password")}>
+            <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#7F1D1D" : "#FEF2F2" }]}>
+              <Ionicons name="lock-closed-outline" size={20} color="#EF4444" />
+            </View>
+            <View style={styles.rowTextWrapper}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Ubah Kata Sandi</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>Amankan akun dengan sandi baru</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ==================== SEKSI 2: TAMPILAN & BAHASA ==================== */}
+        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>PREFERENSI APLIKASI</Text>
+        <View style={[styles.cardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity style={styles.rowItem} onPress={() => setActiveModal("theme")}>
+            <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#334155" : "#F1F5F9" }]}>
+              <Ionicons name="color-palette-outline" size={20} color={colors.isDark ? "#94A3B8" : "#475569"} />
+            </View>
+            <View style={styles.rowTextWrapper}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Mode Tampilan</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
+                {themeMode === "terang" ? "Terang" : themeMode === "gelap" ? "Gelap" : "Ikuti Sistem"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+
+          <TouchableOpacity style={styles.rowItem} onPress={() => setActiveModal("language")}>
+            <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#14532D" : "#F0FDF4" }]}>
+              <Ionicons name="language-outline" size={20} color="#16A34A" />
+            </View>
+            <View style={styles.rowTextWrapper}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Bahasa Aplikasi</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
+                {language === "id" ? "Bahasa Indonesia" : "English"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ==================== SEKSI 3: NOTIFIKASI ==================== */}
+        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>NOTIFIKASI</Text>
+        <View style={[styles.cardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.rowItem}>
+            <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#7C2D12" : "#FFF7ED" }]}>
+              <Ionicons name="notifications-outline" size={20} color="#EA580C" />
+            </View>
+            <View style={styles.rowTextWrapper}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Pengingat Belajar Harian</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>Notifikasi latihan soal setiap hari</Text>
+            </View>
+            <Switch
+              value={isDailyReminder}
+              onValueChange={handleToggleReminder}
+              trackColor={{ false: "#CBD5E1", true: "#86EFAC" }}
+              thumbColor={isDailyReminder ? "#16A34A" : "#F8FAFC"}
+            />
+          </View>
+        </View>
+
+        {/* ==================== SEKSI 4: PENYIMPANAN ==================== */}
+        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>PENYIMPANAN</Text>
+        <View style={[styles.cardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity style={styles.rowItem} onPress={handleClearCache}>
+            <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#581C87" : "#FAF5FF" }]}>
+              <Ionicons name="trash-bin-outline" size={20} color="#9333EA" />
+            </View>
+            <View style={styles.rowTextWrapper}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Bersihkan Cache</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>Ukuran cache saat ini: {cacheSize}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ==================== SEKSI 5: BANTUAN & LEGALITAS ==================== */}
+        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>BANTUAN & DOKUMEN</Text>
+        <View style={[styles.cardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity style={styles.rowItem} onPress={() => setActiveModal("faq")}>
+            <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#1E3A8A" : "#EFF6FF" }]}>
+              <Ionicons name="help-circle-outline" size={20} color="#2563EB" />
+            </View>
+            <View style={styles.rowTextWrapper}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Pusat Bantuan / FAQ</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>Pertanyaan umum seputar aplikasi</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+
+          <TouchableOpacity style={styles.rowItem} onPress={() => setActiveModal("privacy")}>
+            <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#14532D" : "#F0FDF4" }]}>
+              <Ionicons name="shield-checkmark-outline" size={20} color="#16A34A" />
+            </View>
+            <View style={styles.rowTextWrapper}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Kebijakan Privasi & Syarat</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>Ketentuan penggunaan layanan</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ==================== FOOTER VERSI ==================== */}
+        <View style={styles.footerInfo}>
+          <Text style={[styles.versionText, { color: colors.subtext }]}>Ambativasi App</Text>
+          <Text style={[styles.versionNumber, { color: colors.subtext }]}>Versi 1.0.0 (Build 2026)</Text>
+        </View>
+      </ScrollView>
+
+      {/* ==================== SIDEBAR / DRAWER MENU ==================== */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => toggleSidebar(false)}
+        slideAnim={slideAnim}
+        userData={userData}
+        profileImage={profileImage}
+        onLogout={handleLogout}
+      />
+
+      {/* ==================== MODAL: UBAH KATA SANDI ==================== */}
+      <Modal visible={activeModal === "password"} transparent animationType="slide">
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Ubah Kata Sandi</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close" size={24} color={colors.subtext} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Input Kata Sandi Lama */}
+            <View style={[styles.passwordInputContainer, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+              <TextInput
+                style={[styles.inputFieldPassword, { color: colors.text }]}
+                placeholder="Kata Sandi Lama"
+                placeholderTextColor={colors.subtext}
+                secureTextEntry={!showOldPass}
+                value={oldPassword}
+                onChangeText={setOldPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeIconWrapper}
+                onPress={() => setShowOldPass(!showOldPass)}
+              >
+                <Ionicons
+                  name={showOldPass ? "eye-outline" : "eye-off-outline"}
+                  size={20}
+                  color={colors.subtext}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Input Kata Sandi Baru */}
+            <View style={[styles.passwordInputContainer, { backgroundColor: colors.inputBg, borderColor: colors.border, marginTop: 10 }]}>
+              <TextInput
+                style={[styles.inputFieldPassword, { color: colors.text }]}
+                placeholder="Kata Sandi Baru"
+                placeholderTextColor={colors.subtext}
+                secureTextEntry={!showNewPass}
+                value={newPassword}
+                onChangeText={setNewPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeIconWrapper}
+                onPress={() => setShowNewPass(!showNewPass)}
+              >
+                <Ionicons
+                  name={showNewPass ? "eye-outline" : "eye-off-outline"}
+                  size={20}
+                  color={colors.subtext}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Input Konfirmasi Sandi Baru */}
+            <View style={[styles.passwordInputContainer, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+              <TextInput
+                style={[styles.inputFieldPassword, { color: colors.text }]}
+                placeholder="Konfirmasi Sandi Baru"
+                placeholderTextColor={colors.subtext}
+                secureTextEntry={!showConfirmPass}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeIconWrapper}
+                onPress={() => setShowConfirmPass(!showConfirmPass)}
+              >
+                <Ionicons
+                  name={showConfirmPass ? "eye-outline" : "eye-off-outline"}
+                  size={20}
+                  color={colors.subtext}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.btnPrimary, submitting && { opacity: 0.7 }]}
+              onPress={handleSavePassword}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.btnPrimaryText}>Simpan Kata Sandi</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================== MODAL: UBAH EMAIL ==================== */}
+      <Modal visible={activeModal === "email"} transparent animationType="slide">
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Ubah Email Akun</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close" size={24} color={colors.subtext} />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={[styles.inputField, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+              placeholder="Masukkan Email Baru"
+              placeholderTextColor={colors.subtext}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={newEmail}
+              onChangeText={setNewEmail}
+            />
+            <TouchableOpacity
+              style={[styles.btnPrimary, submitting && { opacity: 0.7 }]}
+              onPress={handleSaveEmail}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.btnPrimaryText}>Simpan Email</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================== MODAL: MODE TAMPILAN ==================== */}
+      <Modal visible={activeModal === "theme"} transparent animationType="fade">
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Pilih Mode Tampilan</Text>
+            
+            <TouchableOpacity
+              style={[
+                styles.selectOption,
+                { backgroundColor: colors.inputBg, borderColor: colors.border },
+                themeMode === "terang" && styles.selectOptionActive,
+              ]}
+              onPress={() => handleSelectTheme("terang")}
+            >
+              <Text style={[styles.selectOptionText, { color: colors.text }]}>Mode Terang (Light)</Text>
+              {themeMode === "terang" && <Ionicons name="checkmark-circle" size={20} color="#16A34A" />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.selectOption,
+                { backgroundColor: colors.inputBg, borderColor: colors.border },
+                themeMode === "gelap" && styles.selectOptionActive,
+              ]}
+              onPress={() => handleSelectTheme("gelap")}
+            >
+              <Text style={[styles.selectOptionText, { color: colors.text }]}>Mode Gelap (Dark)</Text>
+              {themeMode === "gelap" && <Ionicons name="checkmark-circle" size={20} color="#16A34A" />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.selectOption,
+                { backgroundColor: colors.inputBg, borderColor: colors.border },
+                themeMode === "sistem" && styles.selectOptionActive,
+              ]}
+              onPress={() => handleSelectTheme("sistem")}
+            >
+              <Text style={[styles.selectOptionText, { color: colors.text }]}>Ikuti Sistem Smartphone</Text>
+              {themeMode === "sistem" && <Ionicons name="checkmark-circle" size={20} color="#16A34A" />}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================== MODAL: BAHASA ==================== */}
+      <Modal visible={activeModal === "language"} transparent animationType="fade">
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Pilih Bahasa Aplikasi</Text>
+            <TouchableOpacity
+              style={[
+                styles.selectOption,
+                { backgroundColor: colors.inputBg, borderColor: colors.border },
+                language === "id" && styles.selectOptionActive,
+              ]}
+              onPress={() => handleSelectLanguage("id")}
+            >
+              <Text style={[styles.selectOptionText, { color: colors.text }]}>Bahasa Indonesia</Text>
+              {language === "id" && <Ionicons name="checkmark-circle" size={20} color="#16A34A" />}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.selectOption,
+                { backgroundColor: colors.inputBg, borderColor: colors.border },
+                language === "en" && styles.selectOptionActive,
+              ]}
+              onPress={() => handleSelectLanguage("en")}
+            >
+              <Text style={[styles.selectOptionText, { color: colors.text }]}>English (Inggris)</Text>
+              {language === "en" && <Ionicons name="checkmark-circle" size={20} color="#16A34A" />}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================== MODAL: FAQ ==================== */}
+      <Modal visible={activeModal === "faq"} transparent animationType="slide">
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card, maxHeight: "80%" }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Pusat Bantuan / FAQ</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close" size={24} color={colors.subtext} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.faqQuestion, { color: colors.text }]}>Q: Bagaimana soal AI digenerate?</Text>
+              <Text style={[styles.faqAnswer, { color: colors.subtext }]}>
+                A: Soal diracik secara otomatis berbasis kecerdasan buatan Gemini API sesuai dengan materi bab yang dipilih.
+              </Text>
+              <Text style={[styles.faqQuestion, { color: colors.text }]}>Q: Apakah riwayat kuis tersimpan?</Text>
+              <Text style={[styles.faqAnswer, { color: colors.subtext }]}>
+                A: Ya, skor dan review jawaban tersimpan otomatis di sistem aplikasi.
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================== MODAL: PRIVASI ==================== */}
+      <Modal visible={activeModal === "privacy"} transparent animationType="slide">
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card, maxHeight: "80%" }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Kebijakan Privasi</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close" size={24} color={colors.subtext} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.faqAnswer, { color: colors.subtext }]}>
+                Aplikasi Ambativasi menghargai privasi pengguna. Data email dan username kamu tersimpan dengan aman dan hanya digunakan untuk keperluan sinkronisasi akun serta hasil belajar.
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: "bold",
+    marginTop: 16,
+    marginBottom: 8,
+    marginLeft: 4,
+    letterSpacing: 0.8,
+  },
+  cardGroup: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  rowItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  iconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  rowTextWrapper: {
+    flex: 1,
+  },
+  rowTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  rowSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  divider: {
+    height: 1,
+    marginLeft: 66,
+  },
+  footerInfo: {
+    alignItems: "center",
+    marginVertical: 28,
+  },
+  versionText: {
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  versionNumber: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalCard: {
+    width: "100%",
+    borderRadius: 20,
+    padding: 20,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 12,
+  },
+  inputField: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    marginBottom: 12,
+  },
+  passwordInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  inputFieldPassword: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+  },
+  eyeIconWrapper: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  btnPrimary: {
+    backgroundColor: "#16A34A",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  btnPrimaryText: {
+    color: "#FFF",
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  selectOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  selectOptionActive: {
+    borderColor: "#16A34A",
+    backgroundColor: "#F0FDF4",
+  },
+  selectOptionText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  faqQuestion: {
+    fontSize: 15,
+    fontWeight: "bold",
+    marginTop: 10,
+  },
+  faqAnswer: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+});
