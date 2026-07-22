@@ -19,8 +19,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Navbar } from "../../components/navbar";
 import { Sidebar } from "../../components/sidebar";
 
-// 💡 IMPORT CONTEXT TEMA GLOBAL REAL-TIME
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
 import { useTheme } from "../../context/ThemeContext";
+import { useLanguage } from "../../context/LanguageContext";
 
 const { width } = Dimensions.get("window");
 
@@ -28,14 +29,15 @@ const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
 export default function MateriScreen() {
-  // --- TEMA GLOBAL REAL-TIME ---
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
   const { colors } = useTheme();
+  const { t, language } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [slideAnim] = useState(new Animated.Value(-width));
 
-  // 💡 STATE BARU: Untuk menyimpan alamat foto profil online dari MySQL
+  // 💡 STATE FOTO PROFIL ONLINE
   const [profileImage, setProfileImage] = useState<string | null>(null);
 
   const [userData, setUserData] = useState<{
@@ -43,7 +45,7 @@ export default function MateriScreen() {
     email: string;
   } | null>(null);
 
-  // 💡 JALUR UTAMA SINKRONISASI: Jalankan checkSession otomatis tiap user kembali ke page ini
+  // 💡 SINKRONISASI OTOMATIS TIAP USER KEMBALI KE PAGE INI
   useFocusEffect(
     React.useCallback(() => {
       checkSession();
@@ -62,7 +64,7 @@ export default function MateriScreen() {
           email: parsedSession.email || "",
         });
 
-        // 💡 ONLINE: Ambil data path gambar terbaru dari database MySQL kamu kawan!
+        // 💡 AMBIL DATA GAMBAR DARI DATABASE
         const response = await fetch(
           `${API_URL}/ambativasi-api/get-profile.php?email=${parsedSession.email}`
         );
@@ -71,7 +73,7 @@ export default function MateriScreen() {
         if (data.status === "success" && data.profile_image) {
           setProfileImage(`${API_URL}/ambativasi-api/${data.profile_image}`);
         } else {
-          setProfileImage(null); // Balik ke huruf inisial kalau kosong
+          setProfileImage(null);
         }
 
         setLoading(false);
@@ -119,14 +121,14 @@ export default function MateriScreen() {
   const levels = [
     {
       id: 1,
-      judul: "Bahasa Jepang",
-      sub: "Penjelasan materi Bahasa Jepang",
+      judul: language === "id" ? "Bahasa Jepang" : "Japanese Language",
+      sub: language === "id" ? "Penjelasan materi Bahasa Jepang" : "Japanese subject material explanation",
       path: "/materi/bahasa-jepang/nihongo",
     },
     {
       id: 2,
-      judul: "Tajwid",
-      sub: "Penjelasan materi Tajwid",
+      judul: language === "id" ? "Tajwid" : "Tajweed",
+      sub: language === "id" ? "Penjelasan materi Tajwid" : "Tajweed subject material explanation",
       path: "/materi/tajwid-islam/tajwid",
     },
   ];
@@ -151,7 +153,7 @@ export default function MateriScreen() {
         >
           <Ionicons name="arrow-back" size={20} color={colors.isDark ? "#4ADE80" : "#16A34A"} />
           <Text style={[styles.backButtonText, { color: colors.isDark ? "#4ADE80" : "#16A34A" }]}>
-            Kembali ke Dashboard
+            {t("back_to_dashboard")}
           </Text>
         </TouchableOpacity>
 
@@ -159,7 +161,7 @@ export default function MateriScreen() {
           showsVerticalScrollIndicator={false}
           style={styles.scrollContainer}
         >
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Pilih Materi</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t("select_materi")}</Text>
 
           {levels.map((level) => (
             <TouchableOpacity

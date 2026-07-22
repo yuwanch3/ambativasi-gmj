@@ -19,15 +19,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Navbar } from "../../../../components/navbar";
 import { Sidebar } from "../../../../components/sidebar";
 
-// 💡 IMPORT CONTEXT TEMA GLOBAL REAL-TIME
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
 import { useTheme } from "../../../../context/ThemeContext";
+import { useLanguage } from "../../../../context/LanguageContext";
 
 const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
 export default function MateriScreen() {
-  // --- TEMA GLOBAL REAL-TIME ---
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
   const { colors } = useTheme();
+  const { t, language } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -54,7 +56,7 @@ export default function MateriScreen() {
           email: parsedSession.email || "",
         });
 
-        // 💡 SINKRONISASI FOTO PROFIL: Ambil otomatis foto profile terdaftar dari API PHP kawan
+        // 💡 SINKRONISASI FOTO PROFIL
         try {
           const responseProfile = await fetch(
             `${API_URL}/ambativasi-api/get-profile.php?email=${parsedSession.email}`
@@ -119,8 +121,11 @@ export default function MateriScreen() {
   const levels = [
     {
       id: 1,
-      judul: "BAB 1",
-      sub: "Perkenalan diri & Pola Kalimat Dasar",
+      judul: language === "id" ? "BAB 1" : "CHAPTER 1",
+      sub:
+        language === "id"
+          ? "Perkenalan diri & Pola Kalimat Dasar"
+          : "Self-introduction & Basic Sentence Patterns",
       path: "/materi/bahasa-jepang/N5/bab1/materiBab1",
     },
   ];
@@ -160,7 +165,7 @@ export default function MateriScreen() {
               { color: colors.isDark ? "#4ADE80" : "#16A34A" },
             ]}
           >
-            Kembali ke Tingkatan
+            {t("back_to_level")}
           </Text>
         </TouchableOpacity>
 
@@ -169,7 +174,7 @@ export default function MateriScreen() {
           style={styles.scrollContainer}
         >
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Pilih BAB
+            {t("select_bab")}
           </Text>
 
           {levels.map((level) => (

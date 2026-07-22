@@ -21,10 +21,18 @@ import YoutubePlayer from "react-native-youtube-iframe";
 import { Navbar } from "../../../../components/navbar";
 import { Sidebar } from "../../../../components/sidebar";
 
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
+import { useTheme } from "../../../../context/ThemeContext";
+import { useLanguage } from "../../../../context/LanguageContext";
+
 const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
 export default function VideoBab1Screen() {
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
+  const { colors } = useTheme();
+  const { t, language } = useLanguage();
+
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [slideAnim] = useState(new Animated.Value(-width));
@@ -128,18 +136,18 @@ export default function VideoBab1Screen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#16A34A" />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
       {/* Sembunyikan Header bawaan Expo agar tidak double */}
       <Stack.Screen options={{ headerShown: false }} />
 
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.card} />
 
       {/* ==================== NAVBAR ATAS ==================== */}
       {/* HANYA MUNCUL JIKA TIDAK SEDANG FULL SCREEN */}
@@ -159,8 +167,10 @@ export default function VideoBab1Screen() {
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={20} color="#16A34A" />
-            <Text style={styles.backButtonText}>Kembali ke Menu Materi</Text>
+            <Ionicons name="arrow-back" size={20} color={colors.isDark ? "#4ADE80" : "#16A34A"} />
+            <Text style={[styles.backButtonText, { color: colors.isDark ? "#4ADE80" : "#16A34A" }]}>
+              {language === "id" ? "Kembali ke Menu Materi" : "Back to Material Menu"}
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -168,7 +178,11 @@ export default function VideoBab1Screen() {
           showsVerticalScrollIndicator={false}
           style={styles.scrollContainer}
         >
-          <Text style={styles.videoTitleText}>Video Pembelajaran: BAB 1</Text>
+          <Text style={[styles.videoTitleText, { color: colors.text }]}>
+            {language === "id"
+              ? "Video Pembelajaran: BAB 1"
+              : "Learning Video: CHAPTER 1"}
+          </Text>
 
           {/* PEMUTAR VIDEO YOUTUBE */}
           <View style={styles.videoWrapper}>
@@ -190,13 +204,19 @@ export default function VideoBab1Screen() {
 
           {/* DESKRIPSI TAMBAHAN DI BAWAH VIDEO */}
           {!isFullScreen && (
-            <View style={styles.descriptionCard}>
-              <Text style={styles.descriptionHeader}>Tentang Materi Ini</Text>
-              <Text style={styles.descriptionBody}>
-                Silakan tonton video tutorial di atas untuk memahami pelafalan,
-                tajwid, dan baik benarnya surah al-fatihah secara mendalam. Kamu
-                bisa menjeda (pause), memajukan, atau mempercepat video
-                menggunakan kontrol bawaan yang tersedia di layar pemutar.
+            <View
+              style={[
+                styles.descriptionCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.descriptionHeader, { color: colors.text }]}>
+                {language === "id" ? "Tentang Materi Ini" : "About This Material"}
+              </Text>
+              <Text style={[styles.descriptionBody, { color: colors.subtext }]}>
+                {language === "id"
+                  ? "Silakan tonton video tutorial di atas untuk memahami pelafalan, tajwid, dan baik benarnya surah al-fatihah secara mendalam. Kamu bisa menjeda (pause), memajukan, atau mempercepat video menggunakan kontrol bawaan yang tersedia di layar pemutar."
+                  : "Please watch the video tutorial above to understand the pronunciation, tajweed, and proper recitation of Surah Al-Fatihah in depth. You can pause, fast-forward, or rewind using the built-in controls on the player."}
               </Text>
             </View>
           )}
@@ -217,12 +237,11 @@ export default function VideoBab1Screen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
   },
   mainContent: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   backButton: {
@@ -234,14 +253,12 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#16A34A",
     marginLeft: 6,
   },
   scrollContainer: { flex: 1, marginTop: 4 },
   videoTitleText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#1E293B",
     marginBottom: 16,
   },
 
@@ -258,17 +275,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   descriptionCard: {
-    backgroundColor: "#FFF",
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
   },
   descriptionHeader: {
     fontSize: 15,
     fontWeight: "bold",
-    color: "#1E293B",
     marginBottom: 8,
   },
-  descriptionBody: { fontSize: 14, color: "#64748B", lineHeight: 22 },
+  descriptionBody: { fontSize: 14, lineHeight: 22 },
 });

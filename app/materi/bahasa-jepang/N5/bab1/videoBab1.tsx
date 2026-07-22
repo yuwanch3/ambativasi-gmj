@@ -21,15 +21,17 @@ import YoutubePlayer from "react-native-youtube-iframe";
 import { Navbar } from "../../../../../components/navbar";
 import { Sidebar } from "../../../../../components/sidebar";
 
-// 💡 IMPORT CONTEXT TEMA GLOBAL REAL-TIME
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
 import { useTheme } from "../../../../../context/ThemeContext";
+import { useLanguage } from "../../../../../context/LanguageContext";
 
 const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
 export default function VideoBab1Screen() {
-  // --- TEMA GLOBAL REAL-TIME ---
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
   const { colors } = useTheme();
+  const { t, language } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -62,7 +64,7 @@ export default function VideoBab1Screen() {
           email: parsedSession.email || "",
         });
 
-        // 💡 AMBIL FOTO PROFIL: Sinkronisasi instan dari database API PHP kamu kawan
+        // 💡 AMBIL FOTO PROFIL
         try {
           const responseProfile = await fetch(
             `${API_URL}/ambativasi-api/get-profile.php?email=${parsedSession.email}`
@@ -191,7 +193,7 @@ export default function VideoBab1Screen() {
                 { color: colors.isDark ? "#4ADE80" : "#16A34A" },
               ]}
             >
-              Kembali ke Menu Materi
+              {language === "id" ? "Kembali ke Menu Materi" : "Back to Material Menu"}
             </Text>
           </TouchableOpacity>
         )}
@@ -201,13 +203,15 @@ export default function VideoBab1Screen() {
           style={styles.scrollContainer}
         >
           <Text style={[styles.videoTitleText, { color: colors.text }]}>
-            Video Pembelajaran: BAB 1
+            {language === "id"
+              ? "Video Pembelajaran: BAB 1"
+              : "Learning Video: CHAPTER 1"}
           </Text>
 
           {/* PEMUTAR VIDEO YOUTUBE */}
           <View style={styles.videoWrapper}>
             <YoutubePlayer
-              height={isFullScreen ? Dimensions.get("window").height : 220} // Menyesuaikan tinggi otomatis saat landscape
+              height={isFullScreen ? Dimensions.get("window").height : 220}
               play={false}
               videoId={videoId}
               onChangeState={(state: string) =>
@@ -233,15 +237,14 @@ export default function VideoBab1Screen() {
               <Text
                 style={[styles.descriptionHeader, { color: colors.text }]}
               >
-                Tentang Materi Ini
+                {language === "id" ? "Tentang Materi Ini" : "About This Material"}
               </Text>
               <Text
                 style={[styles.descriptionBody, { color: colors.subtext }]}
               >
-                Silakan tonton video tutorial di atas untuk memahami pelafalan,
-                tata bahasa, dan kosakata dasar pada BAB 1 secara mendalam. Kamu
-                bisa menjeda (pause), memajukan, atau mempercepat video
-                menggunakan kontrol bawaan yang tersedia di layar pemutar.
+                {language === "id"
+                  ? "Silakan tonton video tutorial di atas untuk memahami pelafalan, tata bahasa, dan kosakata dasar pada BAB 1 secara mendalam. Kamu bisa menjeda (pause), memajukan, atau mempercepat video menggunakan kontrol bawaan yang tersedia di layar pemutar."
+                  : "Please watch the video tutorial above to understand the pronunciation, grammar, and basic vocabulary of CHAPTER 1 in depth. You can pause, fast-forward, or rewind using the built-in controls on the player."}
               </Text>
             </View>
           )}

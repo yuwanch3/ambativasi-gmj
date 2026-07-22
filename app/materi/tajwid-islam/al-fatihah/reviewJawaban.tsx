@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  BackHandler,
   Dimensions,
   Modal,
   ScrollView,
@@ -21,6 +22,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Navbar } from "../../../../components/navbar";
 import { Sidebar } from "../../../../components/sidebar";
 
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
+import { useTheme } from "../../../../context/ThemeContext";
+import { useLanguage } from "../../../../context/LanguageContext";
+
 const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
@@ -29,7 +34,7 @@ interface SoalAI {
   no: number;
   tipe_soal?: "standar" | "full" | "drag_drop" | "fill_blank";
   pertanyaan: string;
-  pilihan: {
+  pilihan?: {
     A: string;
     B: string;
     C: string;
@@ -66,7 +71,9 @@ const checkApakahBenar = (soal: SoalAI, jawabanUserText: string): boolean => {
       try {
         if (soal.jawaban_benar.startsWith("[")) {
           const parsed: string[] = JSON.parse(soal.jawaban_benar);
-          return parsed.some(opsi => bersihkanDanLuruskanTeks(opsi) === cleanUser);
+          if (Array.isArray(parsed)) {
+            return parsed.some(opsi => bersihkanDanLuruskanTeks(opsi) === cleanUser);
+          }
         }
       } catch (e) {}
       return bersihkanDanLuruskanTeks(soal.jawaban_benar) === cleanUser;
@@ -79,6 +86,10 @@ const checkApakahBenar = (soal: SoalAI, jawabanUserText: string): boolean => {
 };
 
 export default function ReviewJawabanKuis() {
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
+  const { colors } = useTheme();
+  const { t, language } = useLanguage();
+
   const router = useRouter();
   const params = useLocalSearchParams();
   const { judul_bab, sumber_data } = params;
@@ -86,7 +97,7 @@ export default function ReviewJawabanKuis() {
   // --- STATE LAYOUT ---
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [slideAnim] = useState(new Animated.Value(-width));
+  const slideAnim = useRef(new Animated.Value(-width)).current;
   const [userData, setUserData] = useState<{
     username: string;
     email: string;
@@ -107,6 +118,15 @@ export default function ReviewJawabanKuis() {
 
   useEffect(() => {
     loadReviewData();
+  }, []);
+
+  useEffect(() => {
+    const backAction = () => {
+      router.back();
+      return true;
+    };
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+    return () => backHandler.remove();
   }, []);
 
   const loadReviewData = async () => {
@@ -137,8 +157,8 @@ export default function ReviewJawabanKuis() {
       const jawabanUserRaw = await AsyncStorage.getItem("jawabanUserKuis");
 
       if (dataSoalRaw && jawabanUserRaw) {
-        const parsedSoal = JSON.parse(dataSoalRaw);
-        const parsedJawaban = JSON.parse(jawabanUserRaw);
+        const parsedSoal: SoalAI[] = JSON.parse(dataSoalRaw);
+        const parsedJawaban: Record<number, string> = JSON.parse(jawabanUserRaw);
         setListSoal(parsedSoal);
         setJawabanUser(parsedJawaban);
 
@@ -198,15 +218,17 @@ export default function ReviewJawabanKuis() {
   // 💡 Konfirmasi Alert saat Logout
   const handleLogout = () => {
     Alert.alert(
-      "Konfirmasi Log Out",
-      "Apakah kamu yakin ingin keluar dari akun Ambativasi?",
+      language === "id" ? "Konfirmasi Log Out" : "Confirm Log Out",
+      language === "id"
+        ? "Apakah kamu yakin ingin keluar dari akun Ambativasi?"
+        : "Are you sure you want to log out of your Ambativasi account?",
       [
         {
-          text: "Batal",
+          text: language === "id" ? "Batal" : "Cancel",
           style: "cancel",
         },
         {
-          text: "Ya, Keluar",
+          text: language === "id" ? "Ya, Keluar" : "Yes, Log Out",
           style: "destructive",
           onPress: async () => {
             try {
@@ -225,7 +247,7 @@ export default function ReviewJawabanKuis() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#16A34A" />
       </View>
     );
@@ -249,20 +271,22 @@ export default function ReviewJawabanKuis() {
 
   const wajibRTL = jenisTipe === "full" && isMateriTajwid;
 
-  const renderTeksPertanyaanReview = (fullText: string) => {
+  const renderTeksPertanyaanReview = (fullText: string = "") => {
+    if (!fullText) return "";
     if (!fullText.includes("___")) return fullText;
     let isian = jawabanUser[indeksAktif];
     
-    if (isian && jenisTipe !== "fill_blank") {
-      isian = soalSaatIni?.pilihan[isian as keyof typeof soalSaatIni.pilihan] || isian;
+    if (isian && jenisTipe !== "fill_blank" && soalSaatIni?.pilihan) {
+      isian = soalSaatIni.pilihan[isian as keyof typeof soalSaatIni.pilihan] || isian;
     }
     
-    return fullText.replace("___", ` [ ${isian || "Tidak Diisi"} ] `);
+    const teksTidakDiisi = language === "id" ? "Tidak Diisi" : "Not Answered";
+    return fullText.replace("___", ` [ ${isian || teksTidakDiisi} ] `);
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.card} />
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* ==================== NAVBAR ATAS ==================== */}
@@ -276,23 +300,32 @@ export default function ReviewJawabanKuis() {
       <View style={styles.mainContent}>
         {/* Tombol Kembali Atas: Langsung router.back() tanpa modal */}
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color="#16A34A" />
-          <Text style={styles.backButtonText}>Kembali</Text>
+          <Ionicons name="arrow-back" size={20} color={colors.isDark ? "#4ADE80" : "#16A34A"} />
+          <Text style={[styles.backButtonText, { color: colors.isDark ? "#4ADE80" : "#16A34A" }]}>
+            {language === "id" ? "Kembali" : "Back"}
+          </Text>
         </TouchableOpacity>
 
-        <Text style={styles.sectionTitle}>Review Hasil: {judul_bab || "Kuis AI"}</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          {language === "id" ? "Review Hasil: " : "Result Review: "}
+          {judul_bab || (language === "id" ? "Kuis AI" : "AI Quiz")}
+        </Text>
 
         {/* RINGKASAN SKOR */}
-        <View style={styles.kartuSkor}>
+        <View style={[styles.kartuSkor, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.infoSkorUtama}>
-            <Text style={styles.labelTotalSkor}>Skor Kamu</Text>
-            <Text style={styles.teksSkor}>{skor} <Text style={styles.teksTotalSoal}>/ {listSoal.length}</Text></Text>
+            <Text style={[styles.labelTotalSkor, { color: colors.subtext }]}>
+              {language === "id" ? "Skor Kamu" : "Your Score"}
+            </Text>
+            <Text style={[styles.teksSkor, { color: colors.text }]}>{skor} <Text style={[styles.teksTotalSoal, { color: colors.subtext }]}>/ {listSoal.length}</Text></Text>
           </View>
-          <View style={styles.pembatasSkor} />
+          <View style={[styles.pembatasSkor, { backgroundColor: colors.border }]} />
           <View style={styles.infoPersentase}>
             <Ionicons name="analytics" size={24} color="#2563EB" />
-            <Text style={styles.teksPersen}>{Math.round((skor / listSoal.length) * 100)}%</Text>
-            <Text style={styles.labelPersen}>Akurasi</Text>
+            <Text style={[styles.teksPersen, { color: colors.isDark ? "#60A5FA" : "#2563EB" }]}>{listSoal.length > 0 ? Math.round((skor / listSoal.length) * 100) : 0}%</Text>
+            <Text style={[styles.labelPersen, { color: colors.subtext }]}>
+              {language === "id" ? "Akurasi" : "Accuracy"}
+            </Text>
           </View>
         </View>
 
@@ -306,6 +339,7 @@ export default function ReviewJawabanKuis() {
                   key={indeks}
                   style={[
                     styles.tombolAngka,
+                    { borderColor: colors.border },
                     indeksAktif === indeks && styles.angkaAktif,
                     indeksAktif !== indeks && (isCorrect ? styles.angkaBenar : styles.angkaSalah)
                   ]}
@@ -321,24 +355,63 @@ export default function ReviewJawabanKuis() {
         </View>
 
         {/* KARTU PERTANYAAN */}
-        <View style={[styles.kartuSoal, wajibRTL && styles.kartuSoalArab]}>
+        <View style={[styles.kartuSoal, { backgroundColor: colors.card, borderColor: colors.border }, wajibRTL && [styles.kartuSoalArab, { backgroundColor: colors.isDark ? "#1E293B" : "#F8FAFF" }]]}>
           <View style={styles.rowTipeReviewBadge}>
-            <Text style={styles.nomorSoalTitle}>Pertanyaan {indeksAktif + 1}</Text>
-            <View style={styles.badgeMiniTipe}><Text style={styles.txtMiniTipe}>{jenisTipe.toUpperCase()}</Text></View>
+            <Text style={[styles.nomorSoalTitle, { color: colors.subtext }]}>
+              {language === "id" ? `Pertanyaan ${indeksAktif + 1}` : `Question ${indeksAktif + 1}`}
+            </Text>
+            
+            {/* BADGE TIPE SOAL DENGAN WARNA TEKS DENGAN KONTRAS TINGGI */}
+            <View 
+              style={[
+                styles.badgeMiniTipe, 
+                jenisTipe === "drag_drop"
+                  ? { backgroundColor: colors.isDark ? "#064E3B" : "#DCFCE7" }
+                  : jenisTipe === "full"
+                  ? { backgroundColor: colors.isDark ? "#1E3A8A" : "#DBEAFE" }
+                  : jenisTipe === "fill_blank"
+                  ? { backgroundColor: colors.isDark ? "#451A1A" : "#FEE2E2" }
+                  : { backgroundColor: colors.isDark ? "#334155" : "#E2E8F0" }
+              ]}
+            >
+              <Text 
+                style={[
+                  styles.txtMiniTipe, 
+                  jenisTipe === "drag_drop"
+                    ? { color: colors.isDark ? "#4ADE80" : "#166534" }
+                    : jenisTipe === "full"
+                    ? { color: colors.isDark ? "#93C5FD" : "#1E40AF" }
+                    : jenisTipe === "fill_blank"
+                    ? { color: colors.isDark ? "#F87171" : "#991B1B" }
+                    : { color: colors.isDark ? "#F8FAFC" : "#334155" }
+                ]}
+              >
+                {jenisTipe.toUpperCase()}
+              </Text>
+            </View>
           </View>
           
-          <Text style={[styles.teksPertanyaan, wajibRTL && styles.teksPertanyaanArab]}>
+          <Text style={[styles.teksPertanyaan, { color: colors.text }, wajibRTL && styles.teksPertanyaanArab]}>
             {renderTeksPertanyaanReview(soalSaatIni?.pertanyaan)}
           </Text>
           
-          <View style={[styles.badgeStatus, jawabanSalah ? styles.badgeSalah : styles.badgeBenar]}>
+          <View 
+            style={[
+              styles.badgeStatus, 
+              jawabanSalah 
+                ? [styles.badgeSalah, { backgroundColor: colors.isDark ? "#451A1A" : "#FEF2F2", borderColor: colors.isDark ? "#991B1B" : "#FEE2E2" }] 
+                : [styles.badgeBenar, { backgroundColor: colors.isDark ? "#064E3B" : "#F0FDF4", borderColor: colors.isDark ? "#065F46" : "#DCFCE7" }]
+            ]}
+          >
             <Ionicons 
               name={jawabanSalah ? "close-circle" : "checkmark-circle"} 
               size={16} 
-              color={jawabanSalah ? "#EF4444" : "#16A34A"} 
+              color={jawabanSalah ? (colors.isDark ? "#F87171" : "#EF4444") : (colors.isDark ? "#4ADE80" : "#16A34A")} 
             />
-            <Text style={[styles.teksStatus, { color: jawabanSalah ? "#EF4444" : "#16A34A" }]}>
-              {jawabanSalah ? "Jawaban Kamu Salah" : "Jawaban Kamu Benar"}
+            <Text style={[styles.teksStatus, { color: jawabanSalah ? (colors.isDark ? "#F87171" : "#EF4444") : (colors.isDark ? "#4ADE80" : "#16A34A") }]}>
+              {jawabanSalah 
+                ? (language === "id" ? "Jawaban Kamu Salah" : "Your Answer is Incorrect") 
+                : (language === "id" ? "Jawaban Kamu Benar" : "Your Answer is Correct")}
             </Text>
           </View>
         </View>
@@ -346,28 +419,32 @@ export default function ReviewJawabanKuis() {
         {/* DAFTAR DATA VERIFIKASI SELEKTIF JAWABAN */}
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
           {jenisTipe === "fill_blank" ? (
-            <View style={styles.boxReviewBlank}>
-              <Text style={styles.labelReviewBlank}>Jawaban Input Teks Kamu:</Text>
-              <View style={[styles.inputReviewBlankBox, isCurrentCorrect ? styles.borderBenar : styles.borderSalah]}>
+            <View style={[styles.boxReviewBlank, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.labelReviewBlank, { color: colors.text }]}>
+                {language === "id" ? "Jawaban Input Teks Kamu:" : "Your Input Text Answer:"}
+              </Text>
+              <View style={[styles.inputReviewBlankBox, { backgroundColor: colors.isDark ? "#0F172A" : "#F8FAFC" }, isCurrentCorrect ? styles.borderBenar : styles.borderSalah]}>
                 <Text style={[styles.textReviewBlankUser, { color: isCurrentCorrect ? "#16A34A" : "#EF4444" }]}>
-                  {jawabanUser[indeksAktif] || "(Kosong / Tidak Mengisi)"}
+                  {jawabanUser[indeksAktif] || (language === "id" ? "(Kosong / Tidak Mengisi)" : "(Blank / Not Answered)")}
                 </Text>
                 <Ionicons name={isCurrentCorrect ? "checkmark-circle" : "close-circle"} size={20} color={isCurrentCorrect ? "#16A34A" : "#EF4444"} />
               </View>
               
-              <Text style={[styles.labelReviewBlank, { marginTop: 14 }]}>Variasi Alternatif Jawaban Yang Sah & Diterima:</Text>
+              <Text style={[styles.labelReviewBlank, { color: colors.text, marginTop: 14 }]}>
+                {language === "id" ? "Variasi Alternatif Jawaban Yang Sah & Diterima:" : "Valid & Accepted Answer Variants:"}
+              </Text>
               <View style={styles.boxAcceptedVariants}>
                 {soalSaatIni && (Array.isArray(soalSaatIni.jawaban_benar) ? (
                   soalSaatIni.jawaban_benar.map((kata, i) => (
-                    <View key={i} style={styles.chipVariant}><Text style={styles.textChipVariant}>{kata}</Text></View>
+                    <View key={i} style={[styles.chipVariant, { backgroundColor: colors.isDark ? "#1E3A8A" : "#EFF6FF", borderColor: colors.isDark ? "#2563EB" : "#BFDBFE" }]}><Text style={[styles.textChipVariant, { color: colors.isDark ? "#93C5FD" : "#1E40AF" }]}>{kata}</Text></View>
                   ))
                 ) : (
-                  <View style={styles.chipVariant}><Text style={styles.textChipVariant}>{String(soalSaatIni?.jawaban_benar)}</Text></View>
+                  <View style={[styles.chipVariant, { backgroundColor: colors.isDark ? "#1E3A8A" : "#EFF6FF", borderColor: colors.isDark ? "#2563EB" : "#BFDBFE" }]}><Text style={[styles.textChipVariant, { color: colors.isDark ? "#93C5FD" : "#1E40AF" }]}>{String(soalSaatIni?.jawaban_benar)}</Text></View>
                 ))}
               </View>
             </View>
           ) : (
-            soalSaatIni && Object.entries(soalSaatIni.pilihan).map(([abjad, teksOpsi]) => {
+            soalSaatIni && soalSaatIni.pilihan && Object.entries(soalSaatIni.pilihan).map(([abjad, teksOpsi]) => {
               const isUserAnswer = jawabanUser[indeksAktif] === abjad;
               const isCorrectAnswer = soalSaatIni.jawaban_benar === abjad;
               const isWrongUserAnswer = isUserAnswer && jawabanSalah;
@@ -384,25 +461,28 @@ export default function ReviewJawabanKuis() {
                   key={abjad} 
                   style={[
                     styles.tombolOpsi,
-                    isCorrectAnswer && styles.opsiBenarKunci,
-                    isWrongUserAnswer && styles.opsiSalahUser,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                    isCorrectAnswer && [styles.opsiBenarKunci, { backgroundColor: colors.isDark ? "#064E3B" : "#F0FDF4" }],
+                    isWrongUserAnswer && [styles.opsiSalahUser, { backgroundColor: colors.isDark ? "#451A1A" : "#FEF2F2" }],
                     wajibRTL && { flexDirection: 'row-reverse' }
                   ]}
                 >
                   <View 
                     style={[
                       styles.badgeAbjad,
+                      { backgroundColor: colors.isDark ? "#334155" : "#F1F5F9" },
                       isCorrectAnswer && styles.badgeOpsiBenar,
                       isWrongUserAnswer && styles.badgeOpsiSalah
                     ]}
                   >
-                    <Text style={[styles.teksAbjad, (isCorrectAnswer || isWrongUserAnswer) && { color: "#fff" }]}>
+                    <Text style={[styles.teksAbjad, { color: colors.subtext }, (isCorrectAnswer || isWrongUserAnswer) && { color: "#fff" }]}>
                       {abjad}
                     </Text>
                   </View>
                   <Text 
                     style={[
                       styles.teksOpsiText,
+                      { color: colors.text },
                       wajibRTL && styles.teksOpsiArab,
                       isCorrectAnswer && styles.teksOpsiBenar,
                       isWrongUserAnswer && styles.teksOpsiSalah
@@ -425,7 +505,9 @@ export default function ReviewJawabanKuis() {
             style={[styles.tombolNav, indeksAktif === 0 && { opacity: 0.4 }]}
             onPress={() => setIndeksAktif(indeksAktif - 1)}
           >
-            <Text style={styles.teksNav}>◄ Sebelumnya</Text>
+            <Text style={styles.teksNav}>
+              {language === "id" ? "◄ Sebelumnya" : "◄ Previous"}
+            </Text>
           </TouchableOpacity>
 
           {indeksAktif === listSoal.length - 1 ? (
@@ -434,21 +516,24 @@ export default function ReviewJawabanKuis() {
               style={[styles.tombolNav, { backgroundColor: "#16A34A" }]}
               onPress={() => router.back()}
             >
-              <Text style={styles.teksNav}>Selesai Review ✔</Text>
+              <Text style={styles.teksNav}>
+                {language === "id" ? "Selesai Review ✔" : "Finish Review ✔"}
+              </Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
               style={styles.tombolNav}
               onPress={() => setIndeksAktif(indeksAktif + 1)}
             >
-              <Text style={styles.teksNav}>Selanjutnya ►</Text>
+              <Text style={styles.teksNav}>
+                {language === "id" ? "Selanjutnya ►" : "Next ►"}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
 
       {/* ==================== SIDEBAR ==================== */}
-      {/* 💡 Menu Navigasi Sidebar memicu Modal Konfirmasi Peringatan */}
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => toggleSidebar(false)}
@@ -464,14 +549,22 @@ export default function ReviewJawabanKuis() {
       {/* ==================== MODAL PERINGATAN KELUAR ==================== */}
       <Modal visible={showExitModal} transparent={true} statusBarTranslucent={true} animationType="none">
         <View style={styles.modalOverlay}>
-          <Animated.View style={[styles.modalContent, { opacity: fadeExitAnim, transform: [{ scale: scaleExitAnim }] }]}>
+          <Animated.View style={[styles.modalContent, { backgroundColor: colors.card }, { opacity: fadeExitAnim, transform: [{ scale: scaleExitAnim }] }]}>
             <View style={styles.modalIconWrapper}>
               <Ionicons name="warning" size={76} color="#EF4444" />
             </View>
-            <Text style={styles.modalTitle}>Meninggalkan Review?</Text>
-            <Text style={styles.modalSubtitle}>Apakah kamu yakin ingin keluar dari halaman review jawaban?</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {language === "id" ? "Meninggalkan Review?" : "Leave Review Page?"}
+            </Text>
+            <Text style={[styles.modalSubtitle, { color: colors.subtext }]}>
+              {language === "id"
+                ? "Apakah kamu yakin ingin keluar dari halaman review jawaban?"
+                : "Are you sure you want to exit the answer review page?"}
+            </Text>
             <TouchableOpacity style={styles.modalButtonUtama} onPress={handleTutupModalKeluar}>
-              <Text style={styles.modalButtonText}>Tidak, Lanjutkan Review</Text>
+              <Text style={styles.modalButtonText}>
+                {language === "id" ? "Tidak, Lanjutkan Review" : "No, Continue Review"}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
@@ -487,7 +580,9 @@ export default function ReviewJawabanKuis() {
                 } 
               }}
             >
-              <Text style={styles.modalButtonTextKeluarYa}>Ya, Keluar</Text>
+              <Text style={styles.modalButtonTextKeluarYa}>
+                {language === "id" ? "Ya, Keluar" : "Yes, Exit"}
+              </Text>
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -497,24 +592,24 @@ export default function ReviewJawabanKuis() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   mainContent: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   backButton: { flexDirection: "row", alignItems: "center", paddingVertical: 10, marginBottom: 12 },
-  backButtonText: { fontSize: 15, fontWeight: "600", color: "#16A34A", marginLeft: 6 },
-  sectionTitle: { fontSize: 18, fontWeight: "bold", color: "#1E293B", marginBottom: 16 },
+  backButtonText: { fontSize: 15, fontWeight: "600", marginLeft: 6 },
+  sectionTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 16 },
   wrapperAngka: { paddingVertical: 4 },
-  tombolAngka: { width: 38, height: 38, borderRadius: 19, justifyContent: "center", alignItems: "center", marginRight: 10, borderWidth: 1, borderColor: "#CBD5E1" },
+  tombolAngka: { width: 38, height: 38, borderRadius: 19, justifyContent: "center", alignItems: "center", marginRight: 10, borderWidth: 1 },
   teksAngka: { fontSize: 14, fontWeight: "bold" },
-  kartuSoal: { backgroundColor: "#FFF", padding: 18, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: "#E2E8F0", elevation: 1 },
-  kartuSoalArab: { borderColor: "#2563EB", backgroundColor: "#F8FAFF" },
-  nomorSoalTitle: { fontSize: 12, color: "#94A3B8", fontWeight: "bold" },
-  teksPertanyaan: { fontSize: 16, color: "#1E293B", lineHeight: 24, fontWeight: "500", marginBottom: 12 },
-  teksPertanyaanArab: { fontSize: 22, textAlign: 'right', lineHeight: 38, color: "#1E293B", fontWeight: "600" },
-  tombolOpsi: { flexDirection: "row", alignItems: "center", backgroundColor: "#FFF", padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: "#E2E8F0" },
-  badgeAbjad: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center", marginRight: 12 },
-  teksAbjad: { fontWeight: "bold", color: "#64748B", fontSize: 14 },
-  teksOpsiText: { flex: 1, fontSize: 15, color: "#334155" },
+  kartuSoal: { padding: 18, borderRadius: 16, marginBottom: 16, borderWidth: 1, elevation: 1 },
+  kartuSoalArab: { borderColor: "#2563EB" },
+  nomorSoalTitle: { fontSize: 12, fontWeight: "bold" },
+  teksPertanyaan: { fontSize: 16, lineHeight: 24, fontWeight: "500", marginBottom: 12 },
+  teksPertanyaanArab: { fontSize: 22, textAlign: 'right', lineHeight: 38, fontWeight: "600" },
+  tombolOpsi: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1 },
+  badgeAbjad: { width: 28, height: 28, borderRadius: 14, justifyContent: "center", alignItems: "center", marginRight: 12 },
+  teksAbjad: { fontWeight: "bold", fontSize: 14 },
+  teksOpsiText: { flex: 1, fontSize: 15 },
   teksOpsiArab: { fontSize: 19, textAlign: "right", paddingHorizontal: 10 },
   navigasiBawah: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 15 },
   tombolNav: { backgroundColor: "#1E293B", paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8 },
@@ -524,48 +619,48 @@ const styles = StyleSheet.create({
   angkaBenar: { backgroundColor: "#16A34A", borderColor: "#16A34A" },
   angkaSalah: { backgroundColor: "#EF4444", borderColor: "#EF4444" },
   
-  badgeStatus: { flexDirection: 'row', alignItems: 'center', backgroundColor: "#F8FAFC", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, alignSelf: 'flex-start', marginTop: 4, borderWidth: 1, borderColor: "#E2E8F0" },
-  badgeBenar: { backgroundColor: "#F0FDF4", borderColor: "#DCFCE7" },
-  badgeSalah: { backgroundColor: "#FEF2F2", borderColor: "#FEE2E2" },
+  badgeStatus: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, alignSelf: 'flex-start', marginTop: 4, borderWidth: 1 },
+  badgeBenar: {},
+  badgeSalah: {},
   teksStatus: { fontSize: 12, fontWeight: 'bold', marginLeft: 6 },
 
-  opsiBenarKunci: { borderColor: "#16A34A", backgroundColor: "#F0FDF4", borderWidth: 2 },
-  opsiSalahUser: { borderColor: "#EF4444", backgroundColor: "#FEF2F2", borderWidth: 2 },
+  opsiBenarKunci: { borderColor: "#16A34A", borderWidth: 2 },
+  opsiSalahUser: { borderColor: "#EF4444", borderWidth: 2 },
   
   badgeOpsiBenar: { backgroundColor: "#16A34A" },
   badgeOpsiSalah: { backgroundColor: "#EF4444" },
   teksOpsiBenar: { flex: 1, fontSize: 15, color: "#16A34A", fontWeight: "600" },
   teksOpsiSalah: { flex: 1, fontSize: 15, color: "#EF4444", fontWeight: "600" },
 
-  kartuSkor: { flexDirection: 'row', backgroundColor: "#FFF", padding: 16, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: "#E2E8F0", alignItems: 'center', elevation: 1 },
+  kartuSkor: { flexDirection: 'row', padding: 16, borderRadius: 16, marginBottom: 16, borderWidth: 1, alignItems: 'center', elevation: 1 },
   infoSkorUtama: { flex: 1, alignItems: 'center' },
-  labelTotalSkor: { fontSize: 12, color: "#64748B", marginBottom: 2 },
-  teksSkor: { fontSize: 28, fontWeight: 'bold', color: "#1E293B" },
-  teksTotalSoal: { fontSize: 16, color: "#94A3B8", fontWeight: 'normal' },
-  pembatasSkor: { width: 1, height: '80%', backgroundColor: "#E2E8F0", marginHorizontal: 15 },
+  labelTotalSkor: { fontSize: 12, marginBottom: 2 },
+  teksSkor: { fontSize: 28, fontWeight: 'bold' },
+  teksTotalSoal: { fontSize: 16, fontWeight: 'normal' },
+  pembatasSkor: { width: 1, height: '80%', marginHorizontal: 15 },
   infoPersentase: { flex: 1, alignItems: 'center' },
-  teksPersen: { fontSize: 20, fontWeight: 'bold', color: "#2563EB", marginTop: 4 },
-  labelPersen: { fontSize: 11, color: "#94A3B8", marginTop: 1 },
+  teksPersen: { fontSize: 20, fontWeight: 'bold', marginTop: 4 },
+  labelPersen: { fontSize: 11, marginTop: 1 },
 
   rowTipeReviewBadge: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  badgeMiniTipe: { backgroundColor: '#F1F5F9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  txtMiniTipe: { fontSize: 9, fontWeight: 'bold', color: '#64748B' },
-  boxReviewBlank: { backgroundColor: '#FFF', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  labelReviewBlank: { fontSize: 13, fontWeight: 'bold', color: '#475569', marginBottom: 6 },
-  inputReviewBlankBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#F8FAFC' },
-  borderBenar: { borderColor: '#16A34A', backgroundColor: '#F0FDF4' },
-  borderSalah: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' },
+  badgeMiniTipe: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  txtMiniTipe: { fontSize: 10, fontWeight: 'bold' },
+  boxReviewBlank: { padding: 16, borderRadius: 16, borderWidth: 1 },
+  labelReviewBlank: { fontSize: 13, fontWeight: 'bold', marginBottom: 6 },
+  inputReviewBlankBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  borderBenar: { borderColor: '#16A34A' },
+  borderSalah: { borderColor: '#EF4444' },
   textReviewBlankUser: { fontSize: 15, fontWeight: 'bold', flex: 1 },
   boxAcceptedVariants: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  chipVariant: { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  textChipVariant: { fontSize: 14, fontWeight: '600', color: '#1E40AF' },
+  chipVariant: { borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  textChipVariant: { fontSize: 14, fontWeight: '600' },
 
   // MODAL STYLES
   modalOverlay: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modalContent: { width: "100%", backgroundColor: "#FFF", borderRadius: 24, padding: 24, alignItems: "center", elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 10 },
+  modalContent: { width: "100%", borderRadius: 24, padding: 24, alignItems: "center", elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 10 },
   modalIconWrapper: { marginBottom: 16, marginTop: 8 },
-  modalTitle: { fontSize: 20, fontWeight: "bold", color: "#1E293B", marginBottom: 8, textAlign: "center" },
-  modalSubtitle: { fontSize: 15, color: "#64748B", textAlign: "center", lineHeight: 22, marginBottom: 24, paddingHorizontal: 10 },
+  modalTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 8, textAlign: "center" },
+  modalSubtitle: { fontSize: 15, textAlign: "center", lineHeight: 22, marginBottom: 24, paddingHorizontal: 10 },
   modalButtonUtama: { backgroundColor: "#16A34A", width: "100%", paddingVertical: 14, borderRadius: 12, alignItems: "center", marginBottom: 12 },
   modalButtonText: { color: "#FFF", fontSize: 16, fontWeight: "bold" },
   modalButtonKeluarYa: { backgroundColor: "#EF4444", width: "100%", paddingVertical: 14, borderRadius: 12, alignItems: "center", borderWidth: 1, borderColor: "#DC2626" },

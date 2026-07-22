@@ -19,10 +19,18 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Navbar } from "../../components/navbar";
 import { Sidebar } from "../../components/sidebar";
 
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
+import { useTheme } from "../../context/ThemeContext";
+import { useLanguage } from "../../context/LanguageContext";
+
 const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
 export default function SoalScreen() {
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
+  const { colors } = useTheme();
+  const { t, language } = useLanguage();
+
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [slideAnim] = useState(new Animated.Value(-width));
@@ -98,7 +106,7 @@ export default function SoalScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#2563EB" />
       </View>
     );
@@ -108,21 +116,21 @@ export default function SoalScreen() {
   const levels = [
     {
       id: 1,
-      judul: "Bahasa Jepang",
-      sub: "Ujian Soal Bahasa Jepang",
+      judul: language === "id" ? "Bahasa Jepang" : "Japanese Language",
+      sub: language === "id" ? "Ujian Soal Bahasa Jepang" : "Japanese Exam Questions",
       path: "/ujian/bahasa-jepang-ujian/subUjian-Nihongo",
     },
     {
       id: 2,
-      judul: "Tajwid",
-      sub: "Ujian Soal Tajwid",
+      judul: language === "id" ? "Tajwid" : "Tajweed",
+      sub: language === "id" ? "Ujian Soal Tajwid" : "Tajweed Exam Questions",
       path: "/ujian/tajwid-islam-ujian/tajwid-ujian",
     },
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.card} />
 
       {/* ==================== NAVBAR ATAS ==================== */}
       <Navbar
@@ -138,8 +146,10 @@ export default function SoalScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={22} color="#2563EB" />
-          <Text style={styles.backButtonText}>Kembali ke Dashboard</Text>
+          <Ionicons name="arrow-back" size={22} color={colors.isDark ? "#60A5FA" : "#2563EB"} />
+          <Text style={[styles.backButtonText, { color: colors.isDark ? "#60A5FA" : "#2563EB" }]}>
+            {language === "id" ? "Kembali ke Dashboard" : "Back to Dashboard"}
+          </Text>
         </TouchableOpacity>
 
         {/* DAFTAR LEVEL BERJAJAR */}
@@ -147,26 +157,49 @@ export default function SoalScreen() {
           showsVerticalScrollIndicator={false}
           style={styles.scrollContainer}
         >
-          <Text style={styles.sectionTitle}>Pilih Materi</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            {language === "id" ? "Pilih Materi" : "Select Material"}
+          </Text>
 
           {levels.map((level) => (
             <TouchableOpacity
               key={level.id}
-              style={styles.levelCard}
+              style={[
+                styles.levelCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
               onPress={() => router.push(level.path as any)}
             >
               <View style={styles.levelCardLeft}>
-                <View style={styles.levelBadge}>
-                  <Text style={styles.levelBadgeText}>{level.id}</Text>
+                <View
+                  style={[
+                    styles.levelBadge,
+                    {
+                      backgroundColor: colors.isDark ? "#1E3A8A" : "#EFF6FF",
+                      borderColor: colors.isDark ? "#2563EB" : "#BFDBFE",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.levelBadgeText,
+                      { color: colors.isDark ? "#93C5FD" : "#2563EB" },
+                    ]}
+                  >
+                    {level.id}
+                  </Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.levelTitle}>{level.judul}</Text>
-                  <Text style={styles.levelSubtitle} numberOfLines={1}>
+                  <Text style={[styles.levelTitle, { color: colors.text }]}>{level.judul}</Text>
+                  <Text
+                    style={[styles.levelSubtitle, { color: colors.subtext }]}
+                    numberOfLines={1}
+                  >
                     {level.sub}
                   </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={20} color={colors.subtext} />
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -188,13 +221,11 @@ export default function SoalScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
   },
   mainContent: {
     flex: 1,
@@ -210,7 +241,6 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#2563EB",
     marginLeft: 6,
   },
   scrollContainer: {
@@ -220,18 +250,15 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#1E293B",
     marginBottom: 16,
   },
   levelCard: {
-    backgroundColor: "#FFF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
     marginBottom: 12,
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 2 },
@@ -246,7 +273,6 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   levelBadge: {
-    backgroundColor: "#EFF6FF",
     width: 40,
     height: 40,
     borderRadius: 12,
@@ -254,21 +280,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 14,
     borderWidth: 1,
-    borderColor: "#BFDBFE",
   },
   levelBadgeText: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#2563EB",
   },
   levelTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#1E293B",
   },
   levelSubtitle: {
     fontSize: 12,
-    color: "#64748B",
     marginTop: 2,
   },
 });

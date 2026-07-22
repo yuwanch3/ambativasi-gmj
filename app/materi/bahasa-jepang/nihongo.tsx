@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -19,15 +19,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Navbar } from "../../../components/navbar";
 import { Sidebar } from "../../../components/sidebar";
 
-// 💡 IMPORT CONTEXT TEMA GLOBAL REAL-TIME
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
 import { useTheme } from "../../../context/ThemeContext";
+import { useLanguage } from "../../../context/LanguageContext";
 
 const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
 export default function MateriScreen() {
-  // --- TEMA GLOBAL REAL-TIME ---
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
   const { colors } = useTheme();
+  const { t, language } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -38,9 +40,11 @@ export default function MateriScreen() {
   } | null>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkSession();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      checkSession();
+    }, [])
+  );
 
   const checkSession = async () => {
     try {
@@ -54,7 +58,7 @@ export default function MateriScreen() {
           email: parsedSession.email || "",
         });
 
-        // 💡 SINKRONISASI FOTO PROFIL: Ambil otomatis foto profile terdaftar dari API PHP kawan
+        // 💡 SINKRONISASI FOTO PROFIL
         try {
           const responseProfile = await fetch(
             `${API_URL}/ambativasi-api/get-profile.php?email=${parsedSession.email}`
@@ -64,6 +68,8 @@ export default function MateriScreen() {
             setProfileImage(
               `${API_URL}/ambativasi-api/${dataProfile.profile_image}`
             );
+          } else {
+            setProfileImage(null);
           }
         } catch (e) {
           console.log("Avatar gagal disinkronkan di tingkat screen", e);
@@ -120,7 +126,7 @@ export default function MateriScreen() {
     {
       id: 1,
       judul: "N5",
-      sub: "Dasar",
+      sub: language === "id" ? "Dasar" : "Basic Level",
       path: "/materi/bahasa-jepang/N5/nihongo-N5",
     },
   ];
@@ -160,7 +166,7 @@ export default function MateriScreen() {
               { color: colors.isDark ? "#4ADE80" : "#16A34A" },
             ]}
           >
-            Kembali ke Bahasa Jepang
+            {language === "id" ? "Kembali ke Bahasa Jepang" : "Back to Japanese"}
           </Text>
         </TouchableOpacity>
 
@@ -169,7 +175,7 @@ export default function MateriScreen() {
           style={styles.scrollContainer}
         >
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Pilih Tingkatan
+            {t("select_level")}
           </Text>
 
           {levels.map((level) => (

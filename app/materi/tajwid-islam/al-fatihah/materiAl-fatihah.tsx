@@ -19,10 +19,18 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Navbar } from "../../../../components/navbar";
 import { Sidebar } from "../../../../components/sidebar";
 
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
+import { useTheme } from "../../../../context/ThemeContext";
+import { useLanguage } from "../../../../context/LanguageContext";
+
 const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
 export default function MateriScreen() {
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
+  const { colors } = useTheme();
+  const { t, language } = useLanguage();
+
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [slideAnim] = useState(new Animated.Value(-width));
@@ -56,7 +64,7 @@ export default function MateriScreen() {
           email: parsedSession.email || "",
         });
 
-        // 💡 AMBIL FOTO PROFIL: Sinkronisasi instan dari database API PHP
+        // 💡 AMBIL FOTO PROFIL
         try {
           const responseProfile = await fetch(`${API_URL}/ambativasi-api/get-profile.php?email=${parsedSession.email}`);
           const dataProfile = await responseProfile.json();
@@ -134,7 +142,7 @@ export default function MateriScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#16A34A" />
       </View>
     );
@@ -143,14 +151,14 @@ export default function MateriScreen() {
   const levels = [
     {
       id: 1,
-      judul: "Materi Tajwid Al-fatihah",
-      sub: "PDF dan Video",
+      judul: language === "id" ? "Materi Tajwid Al-Fatihah" : "Al-Fatihah Tajweed Material",
+      sub: language === "id" ? "PDF dan Video" : "PDF and Video",
       path: "",
     },
     {
       id: 2,
-      judul: "Latihan Soal",
-      sub: "Tajwid Al-fatihah",
+      judul: language === "id" ? "Latihan Soal" : "Practice Questions",
+      sub: language === "id" ? "Tajwid Al-Fatihah" : "Al-Fatihah Tajweed",
       path: "",
     },
   ];
@@ -186,8 +194,8 @@ export default function MateriScreen() {
   });
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.card} />
 
       {/* ==================== NAVBAR ATAS ==================== */}
       <Navbar
@@ -203,32 +211,63 @@ export default function MateriScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={20} color="#16A34A" />
-          <Text style={styles.backButtonText}>Kembali ke BAB</Text>
+          <Ionicons name="arrow-back" size={20} color={colors.isDark ? "#4ADE80" : "#16A34A"} />
+          <Text style={[styles.backButtonText, { color: colors.isDark ? "#4ADE80" : "#16A34A" }]}>
+            {language === "id" ? "Kembali ke Surah" : "Back to Surah"}
+          </Text>
         </TouchableOpacity>
 
         <ScrollView
           showsVerticalScrollIndicator={false}
           style={styles.scrollContainer}
         >
-          <Text style={styles.sectionTitle}>Semangat Belajar</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            {language === "id" ? "Semangat Belajar" : "Keep Learning!"}
+          </Text>
 
           {levels.map((level) => {
             if (level.id === 1) {
               return (
-                <View key={level.id} style={styles.dropdownGroupContainer}>
+                <View
+                  key={level.id}
+                  style={[
+                    styles.dropdownGroupContainer,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                >
                   <TouchableOpacity
-                    style={[styles.levelCard, { marginBottom: 0 }]}
+                    style={[
+                      styles.levelCard,
+                      { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 0 },
+                    ]}
                     onPress={toggleMateriDropdown}
                     activeOpacity={0.7}
                   >
                     <View style={styles.levelCardLeft}>
-                      <View style={styles.levelBadge}>
-                        <Text style={styles.levelBadgeText}>{level.id}</Text>
+                      <View
+                        style={[
+                          styles.levelBadge,
+                          {
+                            backgroundColor: colors.isDark ? "#064E3B" : "#F0FDF4",
+                            borderColor: colors.isDark ? "#065F46" : "#BBF7D0",
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.levelBadgeText,
+                            { color: colors.isDark ? "#4ADE80" : "#16A34A" },
+                          ]}
+                        >
+                          {level.id}
+                        </Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.levelTitle}>{level.judul}</Text>
-                        <Text style={styles.levelSubtitle} numberOfLines={1}>
+                        <Text style={[styles.levelTitle, { color: colors.text }]}>{level.judul}</Text>
+                        <Text
+                          style={[styles.levelSubtitle, { color: colors.subtext }]}
+                          numberOfLines={1}
+                        >
                           {level.sub}
                         </Text>
                       </View>
@@ -236,18 +275,22 @@ export default function MateriScreen() {
                     <Animated.View
                       style={{ transform: [{ rotate: arrowRotation }] }}
                     >
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={colors.subtext} />
                     </Animated.View>
                   </TouchableOpacity>
 
                   <Animated.View
                     style={[
                       styles.dropdownContent,
-                      { height: dropdownHeight, opacity: dropdownOpacity },
+                      {
+                        backgroundColor: colors.isDark ? "#0F172A" : "#F8FAFC",
+                        height: dropdownHeight,
+                        opacity: dropdownOpacity,
+                      },
                     ]}
                   >
                     <TouchableOpacity
-                      style={styles.subMenuItem}
+                      style={[styles.subMenuItem, { borderColor: colors.border }]}
                       onPress={toggleLangDropdown}
                       activeOpacity={0.7}
                     >
@@ -261,10 +304,12 @@ export default function MateriScreen() {
                         <Ionicons
                           name="document-text-outline"
                           size={18}
-                          color="#16A34A"
+                          color={colors.isDark ? "#4ADE80" : "#16A34A"}
                         />
-                        <Text style={styles.subMenuItemText}>
-                          Buka Materi PDF (materi tajwid)
+                        <Text style={[styles.subMenuItemText, { color: colors.text }]}>
+                          {language === "id"
+                            ? "Buka Materi PDF (materi tajwid)"
+                            : "Open PDF Material (tajweed material)"}
                         </Text>
                       </View>
                       <Animated.View
@@ -273,7 +318,7 @@ export default function MateriScreen() {
                         <Ionicons
                           name="chevron-forward"
                           size={16}
-                          color="#64748B"
+                          color={colors.subtext}
                         />
                       </Animated.View>
                     </TouchableOpacity>
@@ -282,21 +327,24 @@ export default function MateriScreen() {
                       style={[
                         styles.langDropdownContent,
                         {
+                          backgroundColor: colors.isDark ? "#1E293B" : "#F1F5F9",
                           height: langDropdownHeight,
                           opacity: langDropdownOpacity,
                         },
                       ]}
                     >
                       <TouchableOpacity
-                        style={styles.langMenuItem}
+                        style={[styles.langMenuItem, { borderColor: colors.border }]}
                         onPress={() =>
                           router.push(
                             "/materi/tajwid-islam/al-fatihah/pdfsurahAl-fatihah" as any
                           )
                         }
                       >
-                        <View style={styles.langDot} />
-                        <Text style={styles.langMenuItemText}>surah al-fatihah</Text>
+                        <View style={[styles.langDot, { backgroundColor: colors.subtext }]} />
+                        <Text style={[styles.langMenuItemText, { color: colors.text }]}>
+                          {language === "id" ? "surah al-fatihah" : "Surah Al-Fatihah"}
+                        </Text>
                       </TouchableOpacity>
                     </Animated.View>
 
@@ -309,10 +357,12 @@ export default function MateriScreen() {
                       <Ionicons
                         name="play-circle-outline"
                         size={18}
-                        color="#2563EB"
+                        color={colors.isDark ? "#60A5FA" : "#2563EB"}
                       />
-                      <Text style={styles.subMenuItemText}>
-                        Tonton Video Pembelajaran
+                      <Text style={[styles.subMenuItemText, { color: colors.text }]}>
+                        {language === "id"
+                          ? "Tonton Video Pembelajaran"
+                          : "Watch Learning Video"}
                       </Text>
                     </TouchableOpacity>
                   </Animated.View>
@@ -323,30 +373,54 @@ export default function MateriScreen() {
             return (
               <TouchableOpacity
                 key={level.id}
-                style={styles.levelCard}
+                style={[
+                  styles.levelCard,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
                 onPress={() =>
                   router.push({
                     pathname: "/materi/tajwid-islam/al-fatihah/latihanSoal",
                     params: {
                       tipe_sumber: "pdf",
                       sumber_data: "TJ_AL_FATIHAH", 
-                      judul_bab: "Kuis Surah Al-Fatihah", 
+                      judul_bab:
+                        language === "id"
+                          ? "Kuis Surah Al-Fatihah"
+                          : "Surah Al-Fatihah Quiz", 
                     },
                   })
                 }
               >
                 <View style={styles.levelCardLeft}>
-                  <View style={styles.levelBadge}>
-                    <Text style={styles.levelBadgeText}>{level.id}</Text>
+                  <View
+                    style={[
+                      styles.levelBadge,
+                      {
+                        backgroundColor: colors.isDark ? "#064E3B" : "#F0FDF4",
+                        borderColor: colors.isDark ? "#065F46" : "#BBF7D0",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.levelBadgeText,
+                        { color: colors.isDark ? "#4ADE80" : "#16A34A" },
+                      ]}
+                    >
+                      {level.id}
+                    </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.levelTitle}>{level.judul}</Text>
-                    <Text style={styles.levelSubtitle} numberOfLines={1}>
+                    <Text style={[styles.levelTitle, { color: colors.text }]}>{level.judul}</Text>
+                    <Text
+                      style={[styles.levelSubtitle, { color: colors.subtext }]}
+                      numberOfLines={1}
+                    >
                       {level.sub}
                     </Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+                <Ionicons name="chevron-forward" size={20} color={colors.subtext} />
               </TouchableOpacity>
             );
           })}
@@ -367,12 +441,11 @@ export default function MateriScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
   },
   mainContent: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   backButton: {
@@ -384,25 +457,21 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#16A34A",
     marginLeft: 6,
   },
   scrollContainer: { flex: 1, marginTop: 4 },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#1E293B",
     marginBottom: 16,
   },
   levelCard: {
-    backgroundColor: "#FFF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
     marginBottom: 12,
     shadowColor: "#0f172A",
     shadowOffset: { width: 0, height: 2 },
@@ -417,7 +486,6 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   levelBadge: {
-    backgroundColor: "#F0FDF4",
     width: 40,
     height: 40,
     borderRadius: 12,
@@ -425,22 +493,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 14,
     borderWidth: 1,
-    borderColor: "#BBF7D0",
   },
-  levelBadgeText: { fontSize: 16, fontWeight: "bold", color: "#16A34A" },
-  levelTitle: { fontSize: 16, fontWeight: "bold", color: "#1E293B" },
-  levelSubtitle: { fontSize: 12, color: "#64748B", marginTop: 2 },
+  levelBadgeText: { fontSize: 16, fontWeight: "bold" },
+  levelTitle: { fontSize: 16, fontWeight: "bold" },
+  levelSubtitle: { fontSize: 12, marginTop: 2 },
 
   dropdownGroupContainer: {
-    backgroundColor: "#FFF",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
     marginBottom: 12,
     overflow: "hidden",
   },
   dropdownContent: {
-    backgroundColor: "#F8FAFC",
     paddingHorizontal: 16,
   },
   subMenuItem: {
@@ -448,17 +512,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderColor: "#E2E8F0",
   },
   subMenuItemText: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#475569",
     marginLeft: 10,
   },
 
   langDropdownContent: {
-    backgroundColor: "#F1F5F9",
     paddingHorizontal: 12,
     borderRadius: 8,
     overflow: "hidden",
@@ -468,19 +529,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderColor: "#E2E8F0",
   },
   langDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#64748B",
     marginRight: 10,
     marginLeft: 4,
   },
   langMenuItemText: {
     fontSize: 13,
     fontWeight: "500",
-    color: "#334155",
   },
 });

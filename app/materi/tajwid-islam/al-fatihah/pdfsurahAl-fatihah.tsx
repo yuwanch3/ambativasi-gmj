@@ -19,10 +19,18 @@ import { WebView } from "react-native-webview";
 import { Navbar } from "../../../../components/navbar";
 import { Sidebar } from "../../../../components/sidebar";
 
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
+import { useTheme } from "../../../../context/ThemeContext";
+import { useLanguage } from "../../../../context/LanguageContext";
+
 const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
 export default function pdfBab1Screen() {
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
+  const { colors } = useTheme();
+  const { t, language } = useLanguage();
+
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [slideAnim] = useState(new Animated.Value(-width));
@@ -104,15 +112,15 @@ export default function pdfBab1Screen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#16A34A" />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.card} />
 
       {/* MENGHILANGKAN BAR PUTIH BAWAAN EXPO ROUTER */}
       <Stack.Screen options={{ headerShown: false }} />
@@ -131,12 +139,14 @@ export default function pdfBab1Screen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={20} color="#16A34A" />
-          <Text style={styles.backButtonText}>Kembali ke Menu Materi</Text>
+          <Ionicons name="arrow-back" size={20} color={colors.isDark ? "#4ADE80" : "#16A34A"} />
+          <Text style={[styles.backButtonText, { color: colors.isDark ? "#4ADE80" : "#16A34A" }]}>
+            {language === "id" ? "Kembali ke Menu Materi" : "Back to Material Menu"}
+          </Text>
         </TouchableOpacity>
 
         {/* CONTAINER VIEW UNTUK MENAMPILKAN PDF SECARA FLEKSIBEL */}
-        <View style={styles.pdfContainer}>
+        <View style={[styles.pdfContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <WebView
             originWhitelist={["*"]}
             source={webViewSource}
@@ -178,12 +188,11 @@ export default function pdfBab1Screen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
   },
 
   mainContent: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
@@ -197,17 +206,14 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#16A34A",
     marginLeft: 6,
   },
 
   // --- STYLE UNTUK CANVAS VIEW PDF ---
   pdfContainer: {
     flex: 1,
-    backgroundColor: "#FFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
     overflow: "hidden",
     marginBottom: 0, 
   },

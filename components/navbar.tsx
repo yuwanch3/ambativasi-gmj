@@ -1,7 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
 import { useTheme } from "../context/ThemeContext";
+import { useLanguage } from "../context/LanguageContext";
 
 interface NavbarProps {
   onOpenSidebar: () => void;
@@ -14,8 +17,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   userData,
   profileImage,
 }) => {
-  // 💡 AMBIL WARNA TEMA REAL-TIME
+  // 💡 AMBIL WARNA TEMA & BAHASA REAL-TIME
   const { colors } = useTheme();
+  const { t } = useLanguage();
 
   return (
     <View

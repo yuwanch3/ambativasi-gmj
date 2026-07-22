@@ -1,68 +1,83 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
-
-// 1. IMPORT TOAST DAN CONFIG CENTRAL URL
-import Toast from "react-native-toast-message";
-import BASE_URL from "../../config";
-
 import {
+  ActivityIndicator,
   Image,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+// 💡 IMPORT TOAST DAN CONFIG CENTRAL URL
+import Toast from "react-native-toast-message";
+import BASE_URL from "../../config";
+
+// 💡 IMPORT CONTEXT BAHASA & TEMA GLOBAL REAL-TIME
+import { useLanguage } from "../../context/LanguageContext";
+import { useTheme } from "../../context/ThemeContext";
 
 export default function App() {
+  // --- BAHASA & TEMA GLOBAL REAL-TIME ---
+  const { language } = useLanguage();
+  const { colors } = useTheme();
+
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleRegister = async () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    // Validasi input kosong diganti menggunakan Toast
+    // Validasi input kosong
     if (!username || !email || !password) {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: "Semua kolom wajib diisi!",
+        text2: language === "id" ? "Semua kolom wajib diisi!" : "All fields are required!",
         position: "top",
         visibilityTime: 2500,
       });
       return;
     }
 
-    // Validasi format email diganti menggunakan Toast
+    // Validasi format email
     if (!emailRegex.test(email)) {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: "Format email tidak valid!",
+        text2: language === "id" ? "Format email tidak valid!" : "Invalid email format!",
         position: "top",
         visibilityTime: 2500,
       });
       return;
     }
 
-    // Validasi panjang password diganti menggunakan Toast
+    // Validasi panjang password
     if (password.length < 6) {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: "Password minimal harus 6 karakter!",
+        text2:
+          language === "id"
+            ? "Password minimal harus 6 karakter!"
+            : "Password must be at least 6 characters!",
         position: "top",
         visibilityTime: 2500,
       });
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
-      // 2. MENGGUNAKAN TEMPLATE LITERAL BASE_URL SINKRON KE CONFIG
       const response = await fetch(`${BASE_URL}/register.php`, {
         method: "POST",
         headers: {
@@ -78,24 +93,21 @@ export default function App() {
       const json = await response.json();
 
       if (json.success) {
-        // Registrasi Sukses menggunakan Toast
         Toast.show({
           type: "success",
-          text1: "Sukses",
+          text1: language === "id" ? "Sukses" : "Success",
           text2: json.message,
           position: "top",
           visibilityTime: 2000,
         });
 
-        // Memberi jeda sedikit agar animasi toast sukses selesai sebelum dialihkan ke login
         setTimeout(() => {
           router.replace("/auth/login");
         }, 1500);
       } else {
-        // Registrasi Gagal dari server respons
         Toast.show({
           type: "error",
-          text1: "Gagal",
+          text1: language === "id" ? "Gagal" : "Failed",
           text2: json.message,
           position: "top",
           visibilityTime: 3000,
@@ -103,50 +115,83 @@ export default function App() {
       }
     } catch (error) {
       console.log(error);
-      // Gangguan koneksi sistem
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: "Terjadi kesalahan jaringan atau IP salah!",
+        text2:
+          language === "id"
+            ? "Terjadi kesalahan jaringan atau IP salah!"
+            : "Network error or wrong IP address!",
         position: "top",
         visibilityTime: 3000,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
+
       <View style={styles.logoContainer}>
         <Image
           source={require("../../assets/images/icon-keren.png")}
           style={styles.logo}
         />
-        <Text style={styles.title}>Ambativasi</Text>
-        <Text style={styles.subtitle}>Sign Up to continue</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Ambativasi</Text>
+        <Text style={[styles.subtitle, { color: colors.subtext }]}>
+          {language === "id" ? "Daftar untuk melanjutkan" : "Sign Up to continue"}
+        </Text>
       </View>
 
       <View style={styles.form}>
         <TextInput
-          style={styles.input}
-          placeholder="Username"
+          style={[
+            styles.input,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              color: colors.text,
+            },
+          ]}
+          placeholder={language === "id" ? "Nama Pengguna" : "Username"}
+          placeholderTextColor={colors.subtext}
           autoCapitalize="none"
           value={username}
           onChangeText={setUsername}
         />
 
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              color: colors.text,
+            },
+          ]}
           placeholder="Email"
+          placeholderTextColor={colors.subtext}
           keyboardType="email-address"
           autoCapitalize="none"
           value={email}
           onChangeText={setEmail}
         />
 
-        <View style={styles.passwordContainer}>
+        <View
+          style={[
+            styles.passwordContainer,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
           <TextInput
-            style={styles.passwordInput}
-            placeholder="Password"
+            style={[styles.passwordInput, { color: colors.text }]}
+            placeholder={language === "id" ? "Kata Sandi" : "Password"}
+            placeholderTextColor={colors.subtext}
             secureTextEntry={!showPassword}
             value={password}
             onChangeText={setPassword}
@@ -158,26 +203,45 @@ export default function App() {
             <Ionicons
               name={showPassword ? "eye-off" : "eye"}
               size={22}
-              color="#64748B"
+              color={colors.subtext}
             />
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity onPress={() => router.push("/auth/forgot-password")}>
-          <Text style={styles.forgotPassword}>Forgot Password?</Text>
+          <Text style={[styles.forgotPassword, { color: colors.isDark ? "#60A5FA" : "#2563EB" }]}>
+            {language === "id" ? "Lupa Kata Sandi?" : "Forgot Password?"}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.registerButton}
+          style={[
+            styles.registerButton,
+            isSubmitting && [
+              styles.buttonDisabled,
+              { backgroundColor: colors.isDark ? "#1E3A8A" : "#93C5FD" },
+            ],
+          ]}
           onPress={handleRegister}
+          disabled={isSubmitting}
         >
-          <Text style={styles.registerButtonText}>Sign Up</Text>
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Text style={styles.registerButtonText}>
+              {language === "id" ? "Daftar" : "Sign Up"}
+            </Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.registerContainer}>
-          <Text>Have an account? </Text>
+          <Text style={{ color: colors.subtext }}>
+            {language === "id" ? "Sudah punya akun? " : "Have an account? "}
+          </Text>
           <TouchableOpacity onPress={() => router.push("/auth/login")}>
-            <Text style={styles.registerText}>Sign In</Text>
+            <Text style={[styles.registerText, { color: colors.isDark ? "#60A5FA" : "#2563EB" }]}>
+              {language === "id" ? "Masuk" : "Sign In"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -188,7 +252,6 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
     justifyContent: "center",
     paddingHorizontal: 24,
   },
@@ -207,12 +270,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#1E293B",
   },
 
   subtitle: {
     fontSize: 14,
-    color: "#64748B",
     marginTop: 8,
   },
 
@@ -221,30 +282,28 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    backgroundColor: "#FFF",
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 55,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    fontSize: 15,
   },
 
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF",
     borderRadius: 12,
     height: 55,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
   },
 
   passwordInput: {
     flex: 1,
     height: "100%",
     paddingHorizontal: 16,
+    fontSize: 15,
   },
 
   eyeButton: {
@@ -256,8 +315,8 @@ const styles = StyleSheet.create({
 
   forgotPassword: {
     textAlign: "right",
-    color: "#2563EB",
     marginBottom: 24,
+    fontWeight: "500",
   },
 
   registerButton: {
@@ -281,7 +340,10 @@ const styles = StyleSheet.create({
   },
 
   registerText: {
-    color: "#2563EB",
     fontWeight: "bold",
+  },
+
+  buttonDisabled: {
+    opacity: 0.7,
   },
 });

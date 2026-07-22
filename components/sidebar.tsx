@@ -12,7 +12,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
 import { useTheme } from "../context/ThemeContext";
+import { useLanguage } from "../context/LanguageContext";
 
 const { width } = Dimensions.get("window");
 
@@ -40,8 +43,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigateProfile,
   onNavigateSettings,
 }) => {
-  // 💡 AMBIL WARNA TEMA REAL-TIME
+  // 💡 AMBIL WARNA TEMA & BAHASA REAL-TIME
   const { colors } = useTheme();
+  const { language } = useLanguage();
 
   if (!isOpen) return null;
 
@@ -114,7 +118,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }}
             >
               <Ionicons name="home-outline" size={20} color={colors.subtext} style={styles.menuIcon} />
-              <Text style={[styles.menuText, { color: colors.text }]}>Dashboard</Text>
+              <Text style={[styles.menuText, { color: colors.text }]}>
+                {language === "id" ? "Dashboard" : "Dashboard"}
+              </Text>
             </TouchableOpacity>
 
             {/* Profile */}
@@ -130,7 +136,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }}
             >
               <Ionicons name="person-outline" size={20} color={colors.subtext} style={styles.menuIcon} />
-              <Text style={[styles.menuText, { color: colors.text }]}>Profile Saya</Text>
+              <Text style={[styles.menuText, { color: colors.text }]}>
+                {language === "id" ? "Profil Saya" : "My Profile"}
+              </Text>
             </TouchableOpacity>
 
             {/* Pengaturan */}
@@ -146,7 +154,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }}
             >
               <Ionicons name="settings-outline" size={20} color={colors.subtext} style={styles.menuIcon} />
-              <Text style={[styles.menuText, { color: colors.text }]}>Pengaturan</Text>
+              <Text style={[styles.menuText, { color: colors.text }]}>
+                {language === "id" ? "Pengaturan" : "Settings"}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -155,7 +165,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <View style={styles.sidebarFooter}>
           <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
             <Ionicons name="log-out-outline" size={20} color="#FFF" style={styles.menuIcon} />
-            <Text style={styles.logoutText}>Log Out</Text>
+            <Text style={styles.logoutText}>
+              {language === "id" ? "Keluar" : "Log Out"}
+            </Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

@@ -18,8 +18,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Navbar } from "../../components/navbar";
 import { Sidebar } from "../../components/sidebar";
 
-// 💡 IMPORT CONTEXT TEMA GLOBAL REAL-TIME
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
 import { useTheme } from "../../context/ThemeContext";
+import { useLanguage } from "../../context/LanguageContext";
 
 const { width } = Dimensions.get("window");
 
@@ -27,14 +28,15 @@ const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
 export default function HomeScreen() {
-  // --- TEMA GLOBAL REAL-TIME ---
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
   const { colors } = useTheme();
+  const { language } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [slideAnim] = useState(new Animated.Value(-width));
 
-  // 💡 STATE BARU: Untuk menyimpan alamat foto profil online dari MySQL
+  // 💡 STATE FOTO PROFIL ONLINE
   const [profileImage, setProfileImage] = useState<string | null>(null);
 
   const [userData, setUserData] = useState<{
@@ -42,7 +44,7 @@ export default function HomeScreen() {
     email: string;
   } | null>(null);
 
-  // 💡 JALUR UTAMA SINKRONISASI: Jalankan checkSession otomatis tiap user kembali ke page ini
+  // 💡 SINKRONISASI OTOMATIS TIAP USER KEMBALI KE PAGE INI
   useFocusEffect(
     React.useCallback(() => {
       checkSession();
@@ -130,7 +132,9 @@ export default function HomeScreen() {
       <View style={styles.mainContent}>
         <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.welcomeText, { color: colors.text }]}>
-            Selamat Datang, {userData?.username}! 👋
+            {language === "id"
+              ? `Selamat Datang, ${userData?.username || "User"}! 👋`
+              : `Welcome, ${userData?.username || "User"}! 👋`}
           </Text>
           <Text style={[styles.subtitle, { color: colors.subtext }]}>{userData?.email}</Text>
         </View>
@@ -154,9 +158,11 @@ export default function HomeScreen() {
                 resizeMode="contain"
               />
             </View>
-            <Text style={[styles.menuCardTitle, { color: colors.text }]}>Materi</Text>
+            <Text style={[styles.menuCardTitle, { color: colors.text }]}>
+              {language === "id" ? "Materi" : "Subjects"}
+            </Text>
             <Text style={[styles.menuCardSubtitle, { color: colors.subtext }]}>
-              Pelajari rangkuman materi
+              {language === "id" ? "Pelajari rangkuman materi" : "Learn subject summaries"}
             </Text>
           </TouchableOpacity>
 
@@ -177,8 +183,12 @@ export default function HomeScreen() {
                 resizeMode="contain"
               />
             </View>
-            <Text style={[styles.menuCardTitle, { color: colors.text }]}>Ujian</Text>
-            <Text style={[styles.menuCardSubtitle, { color: colors.subtext }]}>Mulai Ujian</Text>
+            <Text style={[styles.menuCardTitle, { color: colors.text }]}>
+              {language === "id" ? "Ujian" : "Exams"}
+            </Text>
+            <Text style={[styles.menuCardSubtitle, { color: colors.subtext }]}>
+              {language === "id" ? "Mulai Ujian" : "Start Exam"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

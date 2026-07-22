@@ -19,15 +19,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Navbar } from "../../../../../components/navbar";
 import { Sidebar } from "../../../../../components/sidebar";
 
-// 💡 IMPORT CONTEXT TEMA GLOBAL REAL-TIME
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
 import { useTheme } from "../../../../../context/ThemeContext";
+import { useLanguage } from "../../../../../context/LanguageContext";
 
 const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
 export default function MateriScreen() {
-  // --- TEMA GLOBAL REAL-TIME ---
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
   const { colors } = useTheme();
+  const { t, language } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -62,7 +64,7 @@ export default function MateriScreen() {
           email: parsedSession.email || "",
         });
 
-        // 💡 INTEGRASI: Mengambil data tautan gambar dari database PHP kamu kawan
+        // 💡 INTEGRASI SINKRONISASI FOTO PROFIL
         try {
           const responseProfile = await fetch(
             `${API_URL}/ambativasi-api/get-profile.php?email=${parsedSession.email}`
@@ -158,14 +160,14 @@ export default function MateriScreen() {
   const levels = [
     {
       id: 1,
-      judul: "Materi BAB 1",
-      sub: "PDF dan Video",
+      judul: language === "id" ? "Materi BAB 1" : "CHAPTER 1 Material",
+      sub: language === "id" ? "PDF dan Video" : "PDF and Video",
       path: "",
     },
     {
       id: 2,
-      judul: "Latihan Soal",
-      sub: "Bab 1",
+      judul: language === "id" ? "Latihan Soal" : "Practice Questions",
+      sub: language === "id" ? "Bab 1" : "Chapter 1",
       path: "",
     },
   ];
@@ -235,7 +237,7 @@ export default function MateriScreen() {
               { color: colors.isDark ? "#4ADE80" : "#16A34A" },
             ]}
           >
-            Kembali ke BAB
+            {language === "id" ? "Kembali ke BAB" : "Back to CHAPTER"}
           </Text>
         </TouchableOpacity>
 
@@ -244,7 +246,7 @@ export default function MateriScreen() {
           style={styles.scrollContainer}
         >
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Semangat Belajar
+            {language === "id" ? "Semangat Belajar" : "Keep Learning!"}
           </Text>
 
           {levels.map((level) => {
@@ -261,7 +263,14 @@ export default function MateriScreen() {
                   ]}
                 >
                   <TouchableOpacity
-                    style={[styles.levelCard, { marginBottom: 0, backgroundColor: colors.card, borderColor: colors.border }]}
+                    style={[
+                      styles.levelCard,
+                      {
+                        marginBottom: 0,
+                        backgroundColor: colors.card,
+                        borderColor: colors.border,
+                      },
+                    ]}
                     onPress={toggleMateriDropdown}
                     activeOpacity={0.7}
                   >
@@ -270,7 +279,9 @@ export default function MateriScreen() {
                         style={[
                           styles.levelBadge,
                           {
-                            backgroundColor: colors.isDark ? "#14532D" : "#F0FDF4",
+                            backgroundColor: colors.isDark
+                              ? "#14532D"
+                              : "#F0FDF4",
                             borderColor: colors.isDark ? "#166534" : "#BBF7D0",
                           },
                         ]}
@@ -348,7 +359,9 @@ export default function MateriScreen() {
                             { color: colors.text },
                           ]}
                         >
-                          Buka Materi PDF (materiBab1)
+                          {language === "id"
+                            ? "Buka Materi PDF (materiBab1)"
+                            : "Open PDF Material (materiBab1)"}
                         </Text>
                       </View>
                       <Animated.View
@@ -397,7 +410,7 @@ export default function MateriScreen() {
                             { color: colors.text },
                           ]}
                         >
-                          B.Indo
+                          {language === "id" ? "B.Indo" : "Indonesian"}
                         </Text>
                       </TouchableOpacity>
 
@@ -424,7 +437,7 @@ export default function MateriScreen() {
                             { color: colors.text },
                           ]}
                         >
-                          B.Jepang
+                          {language === "id" ? "B.Jepang" : "Japanese"}
                         </Text>
                       </TouchableOpacity>
                     </Animated.View>
@@ -446,7 +459,9 @@ export default function MateriScreen() {
                           { color: colors.text },
                         ]}
                       >
-                        Tonton Video Pembelajaran
+                        {language === "id"
+                          ? "Tonton Video Pembelajaran"
+                          : "Watch Learning Video"}
                       </Text>
                     </TouchableOpacity>
                   </Animated.View>
@@ -470,7 +485,10 @@ export default function MateriScreen() {
                     params: {
                       tipe_sumber: "pdf",
                       sumber_data: "minho-bab-1-ind.pdf",
-                      judul_bab: "Latihan Soal - BAB 1",
+                      judul_bab:
+                        language === "id"
+                          ? "Latihan Soal - BAB 1"
+                          : "Practice Questions - CHAPTER 1",
                     },
                   })
                 }

@@ -23,8 +23,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Navbar } from "../components/navbar";
 import { Sidebar } from "../components/sidebar";
 
-// 💡 IMPORT CONTEXT TEMA GLOBAL REAL-TIME
+// 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
 import { useTheme } from "../context/ThemeContext";
+import { useLanguage } from "../context/LanguageContext";
 
 const { width } = Dimensions.get("window");
 
@@ -32,8 +33,9 @@ const { width } = Dimensions.get("window");
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
 export default function PengaturanScreen() {
-  // --- TEMA GLOBAL REAL-TIME ---
+  // --- TEMA & BAHASA GLOBAL REAL-TIME ---
   const { themeMode, setThemeMode, colors } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
 
   // --- STATE LAYOUT & SIDEBAR ---
   const [loading, setLoading] = useState(true);
@@ -48,7 +50,6 @@ export default function PengaturanScreen() {
 
   // --- STATE PENGATURAN ---
   const [isDailyReminder, setIsDailyReminder] = useState(true);
-  const [language, setLanguage] = useState<"id" | "en">("id");
   const [cacheSize, setCacheSize] = useState("12.4 MB");
 
   // --- STATE MODAL INTERAKSI ---
@@ -115,10 +116,7 @@ export default function PengaturanScreen() {
   const loadSettings = async () => {
     try {
       const savedReminder = await AsyncStorage.getItem("setting_reminder");
-      const savedLang = await AsyncStorage.getItem("setting_lang");
-
       if (savedReminder !== null) setIsDailyReminder(JSON.parse(savedReminder));
-      if (savedLang) setLanguage(savedLang as any);
     } catch (e) {
       console.log("Gagal memuat preferensi pengaturan", e);
     }
@@ -156,28 +154,35 @@ export default function PengaturanScreen() {
   };
 
   const handleSelectTheme = (mode: "terang" | "gelap" | "sistem") => {
-    setThemeMode(mode); // Langsung update real-time via Context
+    setThemeMode(mode);
     setActiveModal(null);
   };
 
+  // 💡 BAHASA GLOBAL LANGSUNG BERUBAH SECARA REAL-TIME VIA CONTEXT
   const handleSelectLanguage = async (lang: "id" | "en") => {
-    setLanguage(lang);
-    await AsyncStorage.setItem("setting_lang", lang);
+    await setLanguage(lang);
     setActiveModal(null);
   };
 
   const handleClearCache = () => {
     Alert.alert(
-      "Bersihkan Cache",
-      "Apakah kamu yakin ingin membersihkan data cache sementara aplikasi?",
+      t("clear_cache"),
+      language === "id"
+        ? "Apakah kamu yakin ingin membersihkan data cache sementara aplikasi?"
+        : "Are you sure you want to clear app temporary cache data?",
       [
-        { text: "Batal", style: "cancel" },
+        { text: t("cancel"), style: "cancel" },
         {
-          text: "Bersihkan",
+          text: t("clear_cache"),
           style: "destructive",
           onPress: () => {
             setCacheSize("0.0 KB");
-            Alert.alert("Sukses", "Cache aplikasi berhasil dibersihkan kawan!");
+            Alert.alert(
+              t("success"),
+              language === "id"
+                ? "Cache aplikasi berhasil dibersihkan kawan!"
+                : "App cache cleared successfully!"
+            );
           },
         },
       ]
@@ -187,22 +192,34 @@ export default function PengaturanScreen() {
   // 💡 LOGIKA RIIL: UBAH KATA SANDI VIA API PHP BERBASIS VERIFIKASI SANDI LAMA
   const handleSavePassword = async () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
-      Alert.alert("Perhatian", "Harap isi semua bidang kata sandi!");
+      Alert.alert(
+        language === "id" ? "Perhatian" : "Warning",
+        language === "id" ? "Harap isi semua bidang kata sandi!" : "Please fill in all password fields!"
+      );
       return;
     }
 
     if (newPassword.length < 6) {
-      Alert.alert("Perhatian", "Kata sandi baru minimal harus 6 karakter!");
+      Alert.alert(
+        language === "id" ? "Perhatian" : "Warning",
+        language === "id" ? "Kata sandi baru minimal harus 6 karakter!" : "New password must be at least 6 characters!"
+      );
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert("Perhatian", "Konfirmasi kata sandi baru tidak cocok!");
+      Alert.alert(
+        language === "id" ? "Perhatian" : "Warning",
+        language === "id" ? "Konfirmasi kata sandi baru tidak cocok!" : "New password confirmation does not match!"
+      );
       return;
     }
 
     if (oldPassword === newPassword) {
-      Alert.alert("Perhatian", "Kata sandi baru harus berbeda dari kata sandi lama!");
+      Alert.alert(
+        language === "id" ? "Perhatian" : "Warning",
+        language === "id" ? "Kata sandi baru harus berbeda dari kata sandi lama!" : "New password must be different from the old password!"
+      );
       return;
     }
 
@@ -232,7 +249,10 @@ export default function PengaturanScreen() {
       }
 
       if (result.status === "success" || result.success) {
-        Alert.alert("Sukses", "Kata sandi kamu berhasil diperbarui!");
+        Alert.alert(
+          t("success"),
+          language === "id" ? "Kata sandi kamu berhasil diperbarui!" : "Your password has been updated successfully!"
+        );
         setOldPassword("");
         setNewPassword("");
         setConfirmPassword("");
@@ -241,7 +261,10 @@ export default function PengaturanScreen() {
         setShowConfirmPass(false);
         setActiveModal(null);
       } else {
-        Alert.alert("Gagal", result.message || "Kata sandi lama tidak sesuai!");
+        Alert.alert(
+          t("failed"),
+          result.message || (language === "id" ? "Kata sandi lama tidak sesuai!" : "Incorrect old password!")
+        );
       }
     } catch (error) {
       console.log("Error update password:", error);
@@ -256,12 +279,18 @@ export default function PengaturanScreen() {
     const trimmedEmail = newEmail.trim().toLowerCase();
 
     if (!trimmedEmail || !trimmedEmail.includes("@")) {
-      Alert.alert("Perhatian", "Masukkan alamat email yang valid!");
+      Alert.alert(
+        language === "id" ? "Perhatian" : "Warning",
+        language === "id" ? "Masukkan alamat email yang valid!" : "Please enter a valid email address!"
+      );
       return;
     }
 
     if (trimmedEmail === userData?.email) {
-      Alert.alert("Perhatian", "Email baru harus berbeda dari email saat ini!");
+      Alert.alert(
+        language === "id" ? "Perhatian" : "Warning",
+        language === "id" ? "Email baru harus berbeda dari email saat ini!" : "New email must be different from the current email!"
+      );
       return;
     }
 
@@ -295,11 +324,17 @@ export default function PengaturanScreen() {
           email: trimmedEmail,
         });
 
-        Alert.alert("Sukses", "Alamat email berhasil diperbarui!");
+        Alert.alert(
+          t("success"),
+          language === "id" ? "Alamat email berhasil diperbarui!" : "Email address updated successfully!"
+        );
         setNewEmail("");
         setActiveModal(null);
       } else {
-        Alert.alert("Gagal", result.message || "Gagal memperbarui email.");
+        Alert.alert(
+          t("failed"),
+          result.message || (language === "id" ? "Gagal memperbarui email." : "Failed to update email.")
+        );
       }
     } catch (error) {
       console.log("Error update email:", error);
@@ -316,6 +351,12 @@ export default function PengaturanScreen() {
       </View>
     );
   }
+
+  // 💡 WARNA DINAMIS UNTUK OPSI AKTIF MODAL
+  const activeOptionStyle = {
+    borderColor: colors.isDark ? "#4ADE80" : "#16A34A",
+    backgroundColor: colors.isDark ? "#064E3B" : "#F0FDF4",
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
@@ -334,15 +375,15 @@ export default function PengaturanScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* ==================== SEKSI 1: AKUN & KEAMANAN ==================== */}
-        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>AKUN & KEAMANAN</Text>
+        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>{t("account_security")}</Text>
         <View style={[styles.cardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity style={styles.rowItem} onPress={() => setActiveModal("email")}>
             <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#1E3A8A" : "#EFF6FF" }]}>
               <Ionicons name="mail-outline" size={20} color="#2563EB" />
             </View>
             <View style={styles.rowTextWrapper}>
-              <Text style={[styles.rowTitle, { color: colors.text }]}>Ubah Email</Text>
-              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>{userData?.email || "Perbarui alamat email akunmu"}</Text>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>{t("change_email")}</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>{userData?.email || t("change_email_sub")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
           </TouchableOpacity>
@@ -354,24 +395,24 @@ export default function PengaturanScreen() {
               <Ionicons name="lock-closed-outline" size={20} color="#EF4444" />
             </View>
             <View style={styles.rowTextWrapper}>
-              <Text style={[styles.rowTitle, { color: colors.text }]}>Ubah Kata Sandi</Text>
-              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>Amankan akun dengan sandi baru</Text>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>{t("change_password")}</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>{t("change_password_sub")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
           </TouchableOpacity>
         </View>
 
         {/* ==================== SEKSI 2: TAMPILAN & BAHASA ==================== */}
-        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>PREFERENSI APLIKASI</Text>
+        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>{t("app_preferences")}</Text>
         <View style={[styles.cardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity style={styles.rowItem} onPress={() => setActiveModal("theme")}>
             <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#334155" : "#F1F5F9" }]}>
               <Ionicons name="color-palette-outline" size={20} color={colors.isDark ? "#94A3B8" : "#475569"} />
             </View>
             <View style={styles.rowTextWrapper}>
-              <Text style={[styles.rowTitle, { color: colors.text }]}>Mode Tampilan</Text>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>{t("display_mode")}</Text>
               <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
-                {themeMode === "terang" ? "Terang" : themeMode === "gelap" ? "Gelap" : "Ikuti Sistem"}
+                {themeMode === "terang" ? t("light_mode") : themeMode === "gelap" ? t("dark_mode") : t("system_mode")}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
@@ -384,9 +425,9 @@ export default function PengaturanScreen() {
               <Ionicons name="language-outline" size={20} color="#16A34A" />
             </View>
             <View style={styles.rowTextWrapper}>
-              <Text style={[styles.rowTitle, { color: colors.text }]}>Bahasa Aplikasi</Text>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>{t("app_language")}</Text>
               <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
-                {language === "id" ? "Bahasa Indonesia" : "English"}
+                {language === "id" ? t("indonesian") : t("english")}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
@@ -394,15 +435,15 @@ export default function PengaturanScreen() {
         </View>
 
         {/* ==================== SEKSI 3: NOTIFIKASI ==================== */}
-        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>NOTIFIKASI</Text>
+        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>{t("notifications")}</Text>
         <View style={[styles.cardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.rowItem}>
             <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#7C2D12" : "#FFF7ED" }]}>
               <Ionicons name="notifications-outline" size={20} color="#EA580C" />
             </View>
             <View style={styles.rowTextWrapper}>
-              <Text style={[styles.rowTitle, { color: colors.text }]}>Pengingat Belajar Harian</Text>
-              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>Notifikasi latihan soal setiap hari</Text>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>{t("daily_reminder")}</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>{t("daily_reminder_sub")}</Text>
             </View>
             <Switch
               value={isDailyReminder}
@@ -414,30 +455,29 @@ export default function PengaturanScreen() {
         </View>
 
         {/* ==================== SEKSI 4: PENYIMPANAN ==================== */}
-        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>PENYIMPANAN</Text>
+        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>{t("storage")}</Text>
         <View style={[styles.cardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity style={styles.rowItem} onPress={handleClearCache}>
             <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#581C87" : "#FAF5FF" }]}>
               <Ionicons name="trash-bin-outline" size={20} color="#9333EA" />
             </View>
             <View style={styles.rowTextWrapper}>
-              <Text style={[styles.rowTitle, { color: colors.text }]}>Bersihkan Cache</Text>
-              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>Ukuran cache saat ini: {cacheSize}</Text>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>{t("clear_cache")}</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>{cacheSize}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
           </TouchableOpacity>
         </View>
 
         {/* ==================== SEKSI 5: BANTUAN & LEGALITAS ==================== */}
-        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>BANTUAN & DOKUMEN</Text>
+        <Text style={[styles.sectionHeader, { color: colors.subtext }]}>{t("help_docs")}</Text>
         <View style={[styles.cardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity style={styles.rowItem} onPress={() => setActiveModal("faq")}>
             <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#1E3A8A" : "#EFF6FF" }]}>
               <Ionicons name="help-circle-outline" size={20} color="#2563EB" />
             </View>
             <View style={styles.rowTextWrapper}>
-              <Text style={[styles.rowTitle, { color: colors.text }]}>Pusat Bantuan / FAQ</Text>
-              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>Pertanyaan umum seputar aplikasi</Text>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>{t("faq")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
           </TouchableOpacity>
@@ -449,8 +489,7 @@ export default function PengaturanScreen() {
               <Ionicons name="shield-checkmark-outline" size={20} color="#16A34A" />
             </View>
             <View style={styles.rowTextWrapper}>
-              <Text style={[styles.rowTitle, { color: colors.text }]}>Kebijakan Privasi & Syarat</Text>
-              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>Ketentuan penggunaan layanan</Text>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>{t("privacy_policy")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
           </TouchableOpacity>
@@ -478,7 +517,7 @@ export default function PengaturanScreen() {
         <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Ubah Kata Sandi</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{t("change_password")}</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
                 <Ionicons name="close" size={24} color={colors.subtext} />
               </TouchableOpacity>
@@ -488,7 +527,7 @@ export default function PengaturanScreen() {
             <View style={[styles.passwordInputContainer, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
               <TextInput
                 style={[styles.inputFieldPassword, { color: colors.text }]}
-                placeholder="Kata Sandi Lama"
+                placeholder={language === "id" ? "Kata Sandi Lama" : "Old Password"}
                 placeholderTextColor={colors.subtext}
                 secureTextEntry={!showOldPass}
                 value={oldPassword}
@@ -510,7 +549,7 @@ export default function PengaturanScreen() {
             <View style={[styles.passwordInputContainer, { backgroundColor: colors.inputBg, borderColor: colors.border, marginTop: 10 }]}>
               <TextInput
                 style={[styles.inputFieldPassword, { color: colors.text }]}
-                placeholder="Kata Sandi Baru"
+                placeholder={language === "id" ? "Kata Sandi Baru" : "New Password"}
                 placeholderTextColor={colors.subtext}
                 secureTextEntry={!showNewPass}
                 value={newPassword}
@@ -532,7 +571,7 @@ export default function PengaturanScreen() {
             <View style={[styles.passwordInputContainer, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
               <TextInput
                 style={[styles.inputFieldPassword, { color: colors.text }]}
-                placeholder="Konfirmasi Sandi Baru"
+                placeholder={language === "id" ? "Konfirmasi Sandi Baru" : "Confirm New Password"}
                 placeholderTextColor={colors.subtext}
                 secureTextEntry={!showConfirmPass}
                 value={confirmPassword}
@@ -558,7 +597,7 @@ export default function PengaturanScreen() {
               {submitting ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
-                <Text style={styles.btnPrimaryText}>Simpan Kata Sandi</Text>
+                <Text style={styles.btnPrimaryText}>{t("save_password")}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -570,14 +609,14 @@ export default function PengaturanScreen() {
         <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Ubah Email Akun</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{t("change_email")}</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
                 <Ionicons name="close" size={24} color={colors.subtext} />
               </TouchableOpacity>
             </View>
             <TextInput
               style={[styles.inputField, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-              placeholder="Masukkan Email Baru"
+              placeholder={language === "id" ? "Masukkan Email Baru" : "Enter New Email"}
               placeholderTextColor={colors.subtext}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -592,7 +631,7 @@ export default function PengaturanScreen() {
               {submitting ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
-                <Text style={styles.btnPrimaryText}>Simpan Email</Text>
+                <Text style={styles.btnPrimaryText}>{t("save_email")}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -603,42 +642,42 @@ export default function PengaturanScreen() {
       <Modal visible={activeModal === "theme"} transparent animationType="fade">
         <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Pilih Mode Tampilan</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t("select_display_mode")}</Text>
             
             <TouchableOpacity
               style={[
                 styles.selectOption,
                 { backgroundColor: colors.inputBg, borderColor: colors.border },
-                themeMode === "terang" && styles.selectOptionActive,
+                themeMode === "terang" && activeOptionStyle,
               ]}
               onPress={() => handleSelectTheme("terang")}
             >
-              <Text style={[styles.selectOptionText, { color: colors.text }]}>Mode Terang (Light)</Text>
-              {themeMode === "terang" && <Ionicons name="checkmark-circle" size={20} color="#16A34A" />}
+              <Text style={[styles.selectOptionText, { color: colors.text }]}>{t("light_mode")}</Text>
+              {themeMode === "terang" && <Ionicons name="checkmark-circle" size={20} color={colors.isDark ? "#4ADE80" : "#16A34A"} />}
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
                 styles.selectOption,
                 { backgroundColor: colors.inputBg, borderColor: colors.border },
-                themeMode === "gelap" && styles.selectOptionActive,
+                themeMode === "gelap" && activeOptionStyle,
               ]}
               onPress={() => handleSelectTheme("gelap")}
             >
-              <Text style={[styles.selectOptionText, { color: colors.text }]}>Mode Gelap (Dark)</Text>
-              {themeMode === "gelap" && <Ionicons name="checkmark-circle" size={20} color="#16A34A" />}
+              <Text style={[styles.selectOptionText, { color: colors.text }]}>{t("dark_mode")}</Text>
+              {themeMode === "gelap" && <Ionicons name="checkmark-circle" size={20} color={colors.isDark ? "#4ADE80" : "#16A34A"} />}
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
                 styles.selectOption,
                 { backgroundColor: colors.inputBg, borderColor: colors.border },
-                themeMode === "sistem" && styles.selectOptionActive,
+                themeMode === "sistem" && activeOptionStyle,
               ]}
               onPress={() => handleSelectTheme("sistem")}
             >
-              <Text style={[styles.selectOptionText, { color: colors.text }]}>Ikuti Sistem Smartphone</Text>
-              {themeMode === "sistem" && <Ionicons name="checkmark-circle" size={20} color="#16A34A" />}
+              <Text style={[styles.selectOptionText, { color: colors.text }]}>{t("system_mode")}</Text>
+              {themeMode === "sistem" && <Ionicons name="checkmark-circle" size={20} color={colors.isDark ? "#4ADE80" : "#16A34A"} />}
             </TouchableOpacity>
           </View>
         </View>
@@ -648,28 +687,28 @@ export default function PengaturanScreen() {
       <Modal visible={activeModal === "language"} transparent animationType="fade">
         <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Pilih Bahasa Aplikasi</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t("select_app_language")}</Text>
             <TouchableOpacity
               style={[
                 styles.selectOption,
                 { backgroundColor: colors.inputBg, borderColor: colors.border },
-                language === "id" && styles.selectOptionActive,
+                language === "id" && activeOptionStyle,
               ]}
               onPress={() => handleSelectLanguage("id")}
             >
-              <Text style={[styles.selectOptionText, { color: colors.text }]}>Bahasa Indonesia</Text>
-              {language === "id" && <Ionicons name="checkmark-circle" size={20} color="#16A34A" />}
+              <Text style={[styles.selectOptionText, { color: colors.text }]}>{t("indonesian")}</Text>
+              {language === "id" && <Ionicons name="checkmark-circle" size={20} color={colors.isDark ? "#4ADE80" : "#16A34A"} />}
             </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.selectOption,
                 { backgroundColor: colors.inputBg, borderColor: colors.border },
-                language === "en" && styles.selectOptionActive,
+                language === "en" && activeOptionStyle,
               ]}
               onPress={() => handleSelectLanguage("en")}
             >
-              <Text style={[styles.selectOptionText, { color: colors.text }]}>English (Inggris)</Text>
-              {language === "en" && <Ionicons name="checkmark-circle" size={20} color="#16A34A" />}
+              <Text style={[styles.selectOptionText, { color: colors.text }]}>{t("english")}</Text>
+              {language === "en" && <Ionicons name="checkmark-circle" size={20} color={colors.isDark ? "#4ADE80" : "#16A34A"} />}
             </TouchableOpacity>
           </View>
         </View>
@@ -680,7 +719,7 @@ export default function PengaturanScreen() {
         <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
           <View style={[styles.modalCard, { backgroundColor: colors.card, maxHeight: "80%" }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Pusat Bantuan / FAQ</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{t("faq")}</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
                 <Ionicons name="close" size={24} color={colors.subtext} />
               </TouchableOpacity>
@@ -704,7 +743,7 @@ export default function PengaturanScreen() {
         <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
           <View style={[styles.modalCard, { backgroundColor: colors.card, maxHeight: "80%" }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Kebijakan Privasi</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{t("privacy_policy")}</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
                 <Ionicons name="close" size={24} color={colors.subtext} />
               </TouchableOpacity>
@@ -858,10 +897,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 8,
-  },
-  selectOptionActive: {
-    borderColor: "#16A34A",
-    backgroundColor: "#F0FDF4",
   },
   selectOptionText: {
     fontSize: 15,

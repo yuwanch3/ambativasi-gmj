@@ -1,6 +1,8 @@
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -10,10 +12,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import BASE_URL from "../../config";
 
-// 1. IMPORT TOAST DAN CONFIG CENTRAL URL
+// 💡 IMPORT TOAST DAN CONFIG CENTRAL URL
 import Toast from "react-native-toast-message";
 
+// 💡 IMPORT CONTEXT BAHASA & TEMA GLOBAL REAL-TIME
+import { useLanguage } from "../../context/LanguageContext";
+import { useTheme } from "../../context/ThemeContext";
+
 export default function ForgotPasswordScreen() {
+  // --- BAHASA & TEMA GLOBAL REAL-TIME ---
+  const { language } = useLanguage();
+  const { colors } = useTheme();
+
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -40,7 +50,7 @@ export default function ForgotPasswordScreen() {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: "Silakan masukkan email Anda!",
+        text2: language === "id" ? "Silakan masukkan email Anda!" : "Please enter your email!",
         position: "top",
         visibilityTime: 2500,
       });
@@ -51,7 +61,7 @@ export default function ForgotPasswordScreen() {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: "Format email tidak valid!",
+        text2: language === "id" ? "Format email tidak valid!" : "Invalid email format!",
         position: "top",
         visibilityTime: 2500,
       });
@@ -61,7 +71,6 @@ export default function ForgotPasswordScreen() {
     setIsSubmitting(true);
 
     try {
-      // 2. MENGGUNAKAN TEMPLATE LITERAL BASE_URL SINKRON KE CONFIG
       const response = await fetch(`${BASE_URL}/forgot-password.php`, {
         method: "POST",
         headers: {
@@ -77,20 +86,19 @@ export default function ForgotPasswordScreen() {
 
         Toast.show({
           type: "success",
-          text1: "Sukses",
+          text1: language === "id" ? "Sukses" : "Success",
           text2: json.message,
           position: "top",
           visibilityTime: 2500,
         });
 
-        // Beri jeda 1.8 detik agar animasi toast sukses selesai sebelum balik ke Login
         setTimeout(() => {
           router.replace("/auth/login");
         }, 1800);
       } else {
         Toast.show({
           type: "error",
-          text1: "Gagal",
+          text1: language === "id" ? "Gagal" : "Failed",
           text2: json.message,
           position: "top",
           visibilityTime: 3000,
@@ -101,7 +109,10 @@ export default function ForgotPasswordScreen() {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: "Terjadi kesalahan jaringan atau server PHP mati!",
+        text2:
+          language === "id"
+            ? "Terjadi kesalahan jaringan atau server PHP mati!"
+            : "Network error or PHP server is down!",
         position: "top",
         visibilityTime: 3000,
       });
@@ -113,19 +124,32 @@ export default function ForgotPasswordScreen() {
   const isButtonDisabled = isSubmitting || countdown > 0;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.background} />
+
       <View style={styles.header}>
-        <Text style={styles.title}>Reset Password</Text>
-        <Text style={styles.subtitle}>
-          Masukkan email yang terdaftar untuk menerima link pembuatan password
-          baru.
+        <Text style={[styles.title, { color: colors.text }]}>
+          {language === "id" ? "Reset Password" : "Reset Password"}
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.subtext }]}>
+          {language === "id"
+            ? "Masukkan email yang terdaftar untuk menerima link pembuatan password baru."
+            : "Enter your registered email to receive a password reset link."}
         </Text>
       </View>
 
       <View style={styles.form}>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              color: colors.text,
+            },
+          ]}
           placeholder="Email"
+          placeholderTextColor={colors.subtext}
           keyboardType="email-address"
           autoCapitalize="none"
           value={email}
@@ -136,25 +160,36 @@ export default function ForgotPasswordScreen() {
         <TouchableOpacity
           style={[
             styles.resetButton,
-            isButtonDisabled && styles.buttonDisabled,
+            isButtonDisabled && [
+              styles.buttonDisabled,
+              { backgroundColor: colors.isDark ? "#1E3A8A" : "#93C5FD" },
+            ],
           ]}
           onPress={handleResetPassword}
           disabled={isButtonDisabled}
         >
-          <Text style={styles.resetButtonText}>
-            {isSubmitting
-              ? "Mengirim..."
-              : countdown > 0
-                ? `Coba Lagi dalam ${countdown}s`
-                : "Kirim Instruksi"}
-          </Text>
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Text style={styles.resetButtonText}>
+              {countdown > 0
+                ? language === "id"
+                  ? `Coba Lagi dalam ${countdown}s`
+                  : `Try Again in ${countdown}s`
+                : language === "id"
+                ? "Kirim Instruksi"
+                : "Send Instructions"}
+            </Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.push("/auth/login")}
         >
-          <Text style={styles.backButtonText}>Kembali ke Login</Text>
+          <Text style={[styles.backButtonText, { color: colors.isDark ? "#60A5FA" : "#2563EB" }]}>
+            {language === "id" ? "Kembali ke Login" : "Back to Login"}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -164,7 +199,6 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
     justifyContent: "center",
     paddingHorizontal: 24,
   },
@@ -175,25 +209,23 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#1E293B",
   },
   subtitle: {
     fontSize: 14,
-    color: "#64748B",
     marginTop: 8,
     textAlign: "center",
+    lineHeight: 20,
   },
   form: {
     width: "100%",
   },
   input: {
-    backgroundColor: "#FFF",
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 55,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    fontSize: 15,
   },
   resetButton: {
     backgroundColor: "#2563EB",
@@ -209,14 +241,14 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   buttonDisabled: {
-    backgroundColor: "#93C5FD",
+    opacity: 0.7,
   },
   backButton: {
     alignItems: "center",
     marginTop: 10,
+    paddingVertical: 8,
   },
   backButtonText: {
-    color: "#64748B",
     fontSize: 14,
     fontWeight: "600",
   },
