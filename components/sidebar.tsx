@@ -82,7 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Text
                     style={[
                       styles.sidebarAvatarText,
-                      { color: colors.isDark ? "#60A5FA" : "#16A34A" },
+                      { color: colors.isDark ? "#60A5FA" : "#2563EB" },
                     ]}
                   >
                     {userData?.username ? userData.username.charAt(0).toUpperCase() : "U"}

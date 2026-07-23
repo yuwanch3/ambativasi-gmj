@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Notifications from "expo-notifications";
 import { router, Stack, useFocusEffect } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -8,6 +10,7 @@ import {
   Animated,
   Dimensions,
   Modal,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -24,13 +27,32 @@ import { Navbar } from "../components/navbar";
 import { Sidebar } from "../components/sidebar";
 
 // 💡 IMPORT CONTEXT TEMA & BAHASA GLOBAL REAL-TIME
-import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
+import { useTheme } from "../context/ThemeContext";
 
 const { width } = Dimensions.get("window");
 
 // 💡 ONLINE: Pastikan alamat Ngrok ini selalu sama dengan terowongan aktifmu
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
+
+// 💡 KONFIGURASI HANDLER NOTIFIKASI EXPO (MUNCUL MESKIPUN APP DIBUKA / DICLOSE)
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+interface ReminderItem {
+  id: string;
+  hour: number;
+  minute: number;
+  active: boolean;
+  notificationId?: string;
+}
 
 export default function PengaturanScreen() {
   // --- TEMA & BAHASA GLOBAL REAL-TIME ---
@@ -48,13 +70,20 @@ export default function PengaturanScreen() {
   } | null>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
 
-  // --- STATE PENGATURAN ---
+  // --- STATE PENGATURAN NOTIFIKASI MULTI-REMINDER ---
   const [isDailyReminder, setIsDailyReminder] = useState(true);
-  const [cacheSize, setCacheSize] = useState("12.4 MB");
+  const [reminders, setReminders] = useState<ReminderItem[]>([
+    { id: "1", hour: 8, minute: 0, active: true },
+  ]);
+  const [cacheSize, setCacheSize] = useState("0.0 KB");
+
+  // --- STATE TEMPORARY INPUT WAKTU REMINDER BARU ---
+  const [tempHour, setTempHour] = useState("08");
+  const [tempMinute, setTempMinute] = useState("00");
 
   // --- STATE MODAL INTERAKSI ---
   const [activeModal, setActiveModal] = useState<
-    "password" | "email" | "theme" | "language" | "faq" | "privacy" | null
+    "password" | "email" | "theme" | "language" | "faq" | "privacy" | "notification" | null
   >(null);
 
   // --- STATE FORM INPUT KATA SANDI ---
@@ -74,8 +103,31 @@ export default function PengaturanScreen() {
     React.useCallback(() => {
       checkSession();
       loadSettings();
+      requestNotificationPermissions();
     }, [])
   );
+
+  // 💡 MINTA IZIN NOTIFIKASI DARI OS HP & DAFTARKAN CHANNEL ANDROID
+  const requestNotificationPermissions = async () => {
+    try {
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("study-reminder-channel", {
+          name: "Pengingat Belajar",
+          importance: Notifications.AndroidImportance.MAX,
+          sound: "ding", // 👈 File suara mp3 tanpa ekstensi
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#16A34A",
+        });
+      }
+
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== "granted") {
+        await Notifications.requestPermissionsAsync();
+      }
+    } catch (e) {
+      console.log("Gagal meminta izin notifikasi / mendaftarkan channel", e);
+    }
+  };
 
   const checkSession = async () => {
     try {
@@ -113,10 +165,85 @@ export default function PengaturanScreen() {
     }
   };
 
+  // 💡 MENGHITUNG UKURAN CACHE SEMENTARA SECARA REAL-TIME DARI FILE SYSTEM
+  const calculateCacheSize = async () => {
+    try {
+      if (!FileSystem.cacheDirectory) {
+        setCacheSize("0.0 KB");
+        return;
+      }
+      const files = await FileSystem.readDirectoryAsync(FileSystem.cacheDirectory);
+      let totalBytes = 0;
+
+      for (const file of files) {
+        const fileUri = `${FileSystem.cacheDirectory}${file}`;
+        const fileInfo = await FileSystem.getInfoAsync(fileUri);
+        if (fileInfo.exists && !fileInfo.isDirectory && fileInfo.size) {
+          totalBytes += fileInfo.size;
+        }
+      }
+
+      if (totalBytes === 0) {
+        setCacheSize("0.0 KB");
+      } else if (totalBytes < 1024 * 1024) {
+        setCacheSize(`${(totalBytes / 1024).toFixed(1)} KB`);
+      } else {
+        setCacheSize(`${(totalBytes / (1024 * 1024)).toFixed(1)} MB`);
+      }
+    } catch (e) {
+      console.log("Gagal menghitung ukuran cache", e);
+      setCacheSize("0.0 KB");
+    }
+  };
+
+  // 💡 MENGHAPUS SELURUH FILE CACHE DARI SYSTEM TANPA MERUSAK SESSION/PENGATURAN
+  const clearAppCache = async () => {
+    try {
+      if (FileSystem.cacheDirectory) {
+        const files = await FileSystem.readDirectoryAsync(FileSystem.cacheDirectory);
+        for (const file of files) {
+          await FileSystem.deleteAsync(`${FileSystem.cacheDirectory}${file}`, {
+            idempotent: true,
+          });
+        }
+      }
+
+      // Hapus data cache temporary AsyncStorage jika ada (Menjaga userSession & preferensi)
+      const allKeys = await AsyncStorage.getAllKeys();
+      const essentialKeys = [
+        "userSession",
+        "setting_reminder",
+        "setting_reminders_list",
+        "app_language",
+        "app_theme",
+        "language",
+        "theme",
+      ];
+      const cacheKeys = allKeys.filter(
+        (key) => !essentialKeys.includes(key) && (key.startsWith("cache_") || key.includes("temp"))
+      );
+      if (cacheKeys.length > 0) {
+        await AsyncStorage.multiRemove(cacheKeys);
+      }
+
+      await calculateCacheSize();
+    } catch (e) {
+      console.log("Gagal membersihkan cache", e);
+    }
+  };
+
   const loadSettings = async () => {
     try {
       const savedReminder = await AsyncStorage.getItem("setting_reminder");
       if (savedReminder !== null) setIsDailyReminder(JSON.parse(savedReminder));
+
+      const savedRemindersList = await AsyncStorage.getItem("setting_reminders_list");
+      if (savedRemindersList !== null) {
+        setReminders(JSON.parse(savedRemindersList));
+      }
+
+      // Hitung ukuran cache riil
+      await calculateCacheSize();
     } catch (e) {
       console.log("Gagal memuat preferensi pengaturan", e);
     }
@@ -148,9 +275,108 @@ export default function PengaturanScreen() {
     }
   };
 
-  const handleToggleReminder = async (val: boolean) => {
+  // 💡 SCHEDULE ALARM NOTIFIKASI KE SISTEM HP VIA EXPO NOTIFICATIONS
+  const syncNotificationsWithSystem = async (reminderList: ReminderItem[], masterOn: boolean) => {
+    try {
+      // Batalkan semua notifikasi terdahulu agar tidak duplikat
+      await Notifications.cancelAllScheduledNotificationsAsync();
+
+      if (!masterOn) return;
+
+      for (const item of reminderList) {
+        if (item.active) {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: language === "id" ? "Waktunya Belajar! 📖" : "Time to Study! 📖",
+              body:
+                language === "id"
+                  ? "Yuk luangkan waktu sebentar untuk belajar hari ini."
+                  : "Let's take a moment to study for today.",
+              sound: "ding", // 👈 Panggil suara custom
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DAILY,
+              hour: item.hour,
+              minute: item.minute,
+              channelId: "study-reminder-channel-v3", // 👈 Terhubung ke Notification Channel Android
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.log("Gagal menjadwalkan notifikasi sistem", err);
+    }
+  };
+
+  const handleMasterToggleReminder = async (val: boolean) => {
     setIsDailyReminder(val);
     await AsyncStorage.setItem("setting_reminder", JSON.stringify(val));
+    await syncNotificationsWithSystem(reminders, val);
+  };
+
+  const handleAddReminder = async () => {
+    if (reminders.length >= 3) {
+      Alert.alert(
+        language === "id" ? "Batas Maksimal" : "Maximum Limit",
+        language === "id"
+          ? "Kamu hanya dapat menambahkan maksimal 3 jadwal pengingat!"
+          : "You can only set a maximum of 3 daily reminders!"
+      );
+      return;
+    }
+
+    const h = parseInt(tempHour, 10);
+    const m = parseInt(tempMinute, 10);
+
+    if (isNaN(h) || h < 0 || h > 23 || isNaN(m) || m < 0 || m > 59) {
+      Alert.alert(
+        language === "id" ? "Format Waktu Salah" : "Invalid Time Format",
+        language === "id"
+          ? "Harap masukkan Jam (00-23) dan Menit (00-59) dengan benar!"
+          : "Please enter valid Hour (00-23) and Minute (00-59)!"
+      );
+      return;
+    }
+
+    const newReminder: ReminderItem = {
+      id: Date.now().toString(),
+      hour: h,
+      minute: m,
+      active: true,
+    };
+
+    const updatedList = [...reminders, newReminder];
+    setReminders(updatedList);
+    await AsyncStorage.setItem("setting_reminders_list", JSON.stringify(updatedList));
+
+    if (isDailyReminder) {
+      await syncNotificationsWithSystem(updatedList, true);
+    }
+
+    Alert.alert(
+      t("success"),
+      language === "id" ? "Jadwal pengingat baru berhasil ditambahkan!" : "New reminder added successfully!"
+    );
+  };
+
+  const handleDeleteReminder = async (id: string) => {
+    const updatedList = reminders.filter((r) => r.id !== id);
+    setReminders(updatedList);
+    await AsyncStorage.setItem("setting_reminders_list", JSON.stringify(updatedList));
+
+    if (isDailyReminder) {
+      await syncNotificationsWithSystem(updatedList, true);
+    }
+  };
+
+  const handleToggleSingleReminder = async (id: string, val: boolean) => {
+    const updatedList = reminders.map((r) => (r.id === id ? { ...r, active: val } : r));
+    setReminders(updatedList);
+    await AsyncStorage.setItem("setting_reminders_list", JSON.stringify(updatedList));
+
+    if (isDailyReminder) {
+      await syncNotificationsWithSystem(updatedList, true);
+    }
   };
 
   const handleSelectTheme = (mode: "terang" | "gelap" | "sistem") => {
@@ -158,7 +384,6 @@ export default function PengaturanScreen() {
     setActiveModal(null);
   };
 
-  // 💡 BAHASA GLOBAL LANGSUNG BERUBAH SECARA REAL-TIME VIA CONTEXT
   const handleSelectLanguage = async (lang: "id" | "en") => {
     await setLanguage(lang);
     setActiveModal(null);
@@ -175,8 +400,8 @@ export default function PengaturanScreen() {
         {
           text: t("clear_cache"),
           style: "destructive",
-          onPress: () => {
-            setCacheSize("0.0 KB");
+          onPress: async () => {
+            await clearAppCache();
             Alert.alert(
               t("success"),
               language === "id"
@@ -189,7 +414,6 @@ export default function PengaturanScreen() {
     );
   };
 
-  // 💡 LOGIKA RIIL: UBAH KATA SANDI VIA API PHP BERBASIS VERIFIKASI SANDI LAMA
   const handleSavePassword = async () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
       Alert.alert(
@@ -274,7 +498,6 @@ export default function PengaturanScreen() {
     }
   };
 
-  // 💡 LOGIKA RIIL: UBAH EMAIL VIA API PHP & UPDATE SESSION ASYNCSTORAGE
   const handleSaveEmail = async () => {
     const trimmedEmail = newEmail.trim().toLowerCase();
 
@@ -352,7 +575,6 @@ export default function PengaturanScreen() {
     );
   }
 
-  // 💡 WARNA DINAMIS UNTUK OPSI AKTIF MODAL
   const activeOptionStyle = {
     borderColor: colors.isDark ? "#4ADE80" : "#16A34A",
     backgroundColor: colors.isDark ? "#064E3B" : "#F0FDF4",
@@ -437,21 +659,20 @@ export default function PengaturanScreen() {
         {/* ==================== SEKSI 3: NOTIFIKASI ==================== */}
         <Text style={[styles.sectionHeader, { color: colors.subtext }]}>{t("notifications")}</Text>
         <View style={[styles.cardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.rowItem}>
+          <TouchableOpacity style={styles.rowItem} onPress={() => setActiveModal("notification")}>
             <View style={[styles.iconWrapper, { backgroundColor: colors.isDark ? "#7C2D12" : "#FFF7ED" }]}>
               <Ionicons name="notifications-outline" size={20} color="#EA580C" />
             </View>
             <View style={styles.rowTextWrapper}>
               <Text style={[styles.rowTitle, { color: colors.text }]}>{t("daily_reminder")}</Text>
-              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>{t("daily_reminder_sub")}</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
+                {isDailyReminder 
+                  ? (language === "id" ? `${reminders.length} Jadwal Pengingat Aktif` : `${reminders.length} Active Reminders`)
+                  : (language === "id" ? "Notifikasi Dinonaktifkan" : "Notifications Disabled")}
+              </Text>
             </View>
-            <Switch
-              value={isDailyReminder}
-              onValueChange={handleToggleReminder}
-              trackColor={{ false: "#CBD5E1", true: "#86EFAC" }}
-              thumbColor={isDailyReminder ? "#16A34A" : "#F8FAFC"}
-            />
-          </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+          </TouchableOpacity>
         </View>
 
         {/* ==================== SEKSI 4: PENYIMPANAN ==================== */}
@@ -511,6 +732,103 @@ export default function PengaturanScreen() {
         profileImage={profileImage}
         onLogout={handleLogout}
       />
+
+      {/* ==================== MODAL: ATUR NOTIFIKASI REMINDER ==================== */}
+      <Modal visible={activeModal === "notification"} transparent animationType="slide">
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text, marginBottom: 0 }]}>
+                {language === "id" ? "Pengingat Belajar" : "Study Reminder"}
+              </Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close" size={24} color={colors.subtext} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Master Switch Pengingat */}
+            <View style={[styles.masterSwitchRow, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+              <Text style={[styles.masterSwitchText, { color: colors.text }]}>
+                {language === "id" ? "Aktifkan Notifikasi" : "Enable Notifications"}
+              </Text>
+              <Switch
+                value={isDailyReminder}
+                onValueChange={handleMasterToggleReminder}
+                trackColor={{ false: "#CBD5E1", true: "#86EFAC" }}
+                thumbColor={isDailyReminder ? "#16A34A" : "#F8FAFC"}
+              />
+            </View>
+
+            {/* Daftar Reminders (Maksimal 3) */}
+            <Text style={[styles.subLabel, { color: colors.subtext, marginTop: 14 }]}>
+              {language === "id" ? `Jadwal Pengingat (${reminders.length}/3):` : `Reminder Schedules (${reminders.length}/3):`}
+            </Text>
+
+            <ScrollView style={{ maxHeight: 180, marginVertical: 8 }}>
+              {reminders.map((item) => {
+                const formattedTime = `${item.hour.toString().padStart(2, "0")}:${item.minute.toString().padStart(2, "0")}`;
+                return (
+                  <View key={item.id} style={[styles.reminderCardItem, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <Ionicons name="alarm-outline" size={22} color="#EA580C" style={{ marginRight: 10 }} />
+                      <Text style={[styles.reminderTimeText, { color: colors.text }]}>{formattedTime} WIB</Text>
+                    </View>
+
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <Switch
+                        disabled={!isDailyReminder}
+                        value={item.active}
+                        onValueChange={(val) => handleToggleSingleReminder(item.id, val)}
+                        trackColor={{ false: "#CBD5E1", true: "#86EFAC" }}
+                        thumbColor={item.active ? "#16A34A" : "#F8FAFC"}
+                      />
+                      <TouchableOpacity
+                        style={{ marginLeft: 10 }}
+                        onPress={() => handleDeleteReminder(item.id)}
+                      >
+                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            {/* Form Tambah Waktu Alarm Baru jika < 3 */}
+            {reminders.length < 3 && isDailyReminder && (
+              <View style={[styles.addTimeBox, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+                <Text style={[styles.addTimeTitle, { color: colors.text }]}>
+                  {language === "id" ? "Tambah Jam Notifikasi" : "Add Notification Time"}
+                </Text>
+                <View style={styles.timeInputRow}>
+                  <TextInput
+                    style={[styles.timeInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    value={tempHour}
+                    onChangeText={setTempHour}
+                  />
+                  <Text style={[styles.timeColon, { color: colors.text }]}>:</Text>
+                  <TextInput
+                    style={[styles.timeInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    value={tempMinute}
+                    onChangeText={setTempMinute}
+                  />
+                  <TouchableOpacity style={styles.btnAddTime} onPress={handleAddReminder}>
+                    <Ionicons name="add" size={24} color="#FFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity style={[styles.btnPrimary, { marginTop: 12 }]} onPress={() => setActiveModal(null)}>
+              <Text style={styles.btnPrimaryText}>{language === "id" ? "Selesai" : "Done"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* ==================== MODAL: UBAH KATA SANDI ==================== */}
       <Modal visible={activeModal === "password"} transparent animationType="slide">
@@ -850,6 +1168,75 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 12,
+  },
+  subLabel: {
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  masterSwitchRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  masterSwitchText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  reminderCardItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  reminderTimeText: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  addTimeBox: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  addTimeTitle: {
+    fontSize: 13,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  timeInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timeInput: {
+    width: 50,
+    height: 42,
+    borderWidth: 1,
+    borderRadius: 8,
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  timeColon: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginHorizontal: 8,
+  },
+  btnAddTime: {
+    backgroundColor: "#16A34A",
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 12,
   },
   inputField: {
     borderWidth: 1,

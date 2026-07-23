@@ -29,6 +29,10 @@ import { useTheme } from "../context/ThemeContext";
 
 const { width, height } = Dimensions.get("window");
 
+// 💡 UKURAN LUBANG CROP LINGKARAN & MASKING RAKSASA
+const CROP_SIZE = width * 0.75;
+const MASK_RADIUS = 500;
+
 // 💡 ONLINE: Pastikan alamat Ngrok ini sama persis dengan yang aktif di terminalmu ya kawan!
 const API_URL = "https://detract-parabola-moistness.ngrok-free.dev";
 
@@ -53,17 +57,70 @@ export default function ProfileScreen() {
     email: string;
   } | null>(null);
 
-  // --- PAN RESPONDER UNTUK GESER FOTO DI CROP MODAL ---
+  // --- PAN & SCALE RESPONDER UNTUK GESER & CUBIT ZOOM FOTO ---
   const pan = useRef(new Animated.ValueXY()).current;
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const lastScale = useRef(1);
+  const initialDistance = useRef(0);
+
+  // 💡 FUNGSI HITUNG JARAK KEDUA JARI (PINCH)
+  const getDistance = (touches: any[]) => {
+    const [a, b] = touches;
+    const dx = a.pageX - b.pageX;
+    const dy = a.pageY - b.pageY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        const touches = evt.nativeEvent.touches;
+        if (touches.length === 2) {
+          initialDistance.current = getDistance(touches);
+        } else {
+          initialDistance.current = 0;
+          pan.setOffset({
+            x: (pan.x as any)._value || 0,
+            y: (pan.y as any)._value || 0,
+          });
+          pan.setValue({ x: 0, y: 0 });
+        }
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        const touches = evt.nativeEvent.touches;
+
+        // 💡 JIKA 2 JARI: FITUR CUBIT ZOOM IN / ZOOM OUT
+        if (touches.length === 2) {
+          const currentDistance = getDistance(touches);
+          if (initialDistance.current === 0) {
+            initialDistance.current = currentDistance;
+          } else {
+            const factor = currentDistance / initialDistance.current;
+            let newScale = lastScale.current * factor;
+            newScale = Math.max(0.5, Math.min(newScale, 5)); // Batas zoom 0.5x - 5x
+            scale.setValue(newScale);
+          }
+        } 
+        // 💡 JIKA 1 JARI: FITUR GESER GAMBAR (PAN)
+        else if (touches.length === 1) {
+          initialDistance.current = 0;
+          lastScale.current = (scale as any)._value || lastScale.current;
+          pan.x.setValue(gestureState.dx);
+          pan.y.setValue(gestureState.dy);
+        }
+      },
       onPanResponderRelease: () => {
-        pan.extractOffset();
+        pan.flattenOffset();
+        lastScale.current = (scale as any)._value || lastScale.current;
+        initialDistance.current = 0;
+      },
+      onPanResponderTerminate: () => {
+        pan.flattenOffset();
+        lastScale.current = (scale as any)._value || lastScale.current;
+        initialDistance.current = 0;
       },
     })
   ).current;
@@ -122,6 +179,9 @@ export default function ProfileScreen() {
     if (!result.canceled && result.assets[0].uri) {
       pan.setValue({ x: 0, y: 0 });
       pan.setOffset({ x: 0, y: 0 });
+      scale.setValue(1);
+      lastScale.current = 1;
+      initialDistance.current = 0;
       setTempImageUri(result.assets[0].uri);
       setIsPreviewModalOpen(true);
     }
@@ -330,9 +390,17 @@ export default function ProfileScreen() {
             <Text style={styles.modalCustomTitle}>Sesuaikan Foto Profil</Text>
           </View>
 
-          {/* AREA INTERAKTIF GESER GAMBAR */}
+          {/* AREA INTERAKTIF GESER & CUBIT ZOOM GAMBAR */}
           <View style={styles.cropWindowArea} {...panResponder.panHandlers}>
-            <Animated.View style={{ transform: pan.getTranslateTransform() }}>
+            <Animated.View
+              style={{
+                transform: [
+                  { translateX: pan.x },
+                  { translateY: pan.y },
+                  { scale: scale },
+                ],
+              }}
+            >
               {tempImageUri && (
                 <Image
                   source={{ uri: tempImageUri }}
@@ -342,15 +410,10 @@ export default function ProfileScreen() {
               )}
             </Animated.View>
 
-            {/* SISTEM LAYOUT MASKING: Lingkaran tengah terang benderang */}
+            {/* SISTEM MASKING LINGKARAN PRESISI */}
             <View style={styles.maskOverlayContainer} pointerEvents="none">
-              <View style={styles.maskTop} />
-              <View style={styles.maskMiddleRow}>
-                <View style={styles.maskSide} />
-                <View style={styles.maskCircleHole} />
-                <View style={styles.maskSide} />
-              </View>
-              <View style={styles.maskBottom} />
+              <View style={styles.donutMaskCircle} />
+              <View style={styles.blueRingBorder} />
             </View>
           </View>
 
@@ -510,40 +573,26 @@ const styles = StyleSheet.create({
     height: height * 0.6,
   },
   maskOverlayContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
   },
-  maskTop: {
-    flex: 1,
-    width: "100%",
-    backgroundColor: "rgba(15, 23, 42, 0.75)",
+  donutMaskCircle: {
+    width: CROP_SIZE + MASK_RADIUS * 2,
+    height: CROP_SIZE + MASK_RADIUS * 2,
+    borderRadius: (CROP_SIZE + MASK_RADIUS * 2) / 2,
+    borderWidth: MASK_RADIUS,
+    borderColor: "rgba(15, 23, 42, 0.85)",
+    backgroundColor: "transparent",
+    position: "absolute",
   },
-  maskMiddleRow: {
-    flexDirection: "row",
-    height: width * 0.75,
-    width: "100%",
-  },
-  maskSide: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.75)",
-  },
-  maskCircleHole: {
-    width: width * 0.75,
-    height: width * 0.75,
-    borderRadius: (width * 0.75) / 2,
+  blueRingBorder: {
+    width: CROP_SIZE,
+    height: CROP_SIZE,
+    borderRadius: CROP_SIZE / 2,
     borderWidth: 2,
     borderColor: "#2563EB",
-    backgroundColor: "transparent",
-  },
-  maskBottom: {
-    flex: 1,
-    width: "100%",
-    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    position: "absolute",
   },
   modalCustomFooter: {
     flexDirection: "row",
